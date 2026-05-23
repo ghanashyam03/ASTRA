@@ -1,0 +1,22 @@
+app:
+  name: ASTRA
+  version: "0.1.0"
+  debug: false
+
+physics:
+  spice_kernel_dir: "data/spice_kernels"
+  ephemeris_cache_dir: "data/ephemerides"
+  default_ephemeris: "DE440"
+  propagator_rtol: 1.0e-10
+  propagator_atol: 1.0e-12
+
+optimization:
+  default_strategy: "bayesian"
+  max_evaluations: 5000
+  time_limit_seconds: 300
+  default_seed: 42
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1

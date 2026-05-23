@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# Data caches
+data/ephemerides/*
+!data/ephemerides/.gitkeep
+
+# SPICE kernels (large scientific datasets)
+data/spice_kernels/*
+!data/spice_kernels/.gitkeep
+
+# Benchmark outputs
+benchmarks/output/
+
+# DuckDB files
+*.duckdb
+
+# Zarr stores
+*.zarr
+
+# Parquet outputs
+*.parquet
