@@ -1,0 +1,64 @@
+[project]
+name = "astra"
+version = "0.1.0"
+description = "Physics-constrained orbital trajectory optimization platform"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "jax>=0.4.25",
+    "jaxlib>=0.4.25",
+    "poliastro>=0.17",
+    "spiceypy>=6.0",
+    "astropy>=6.0",
+    "torch>=2.2",
+    "optuna>=3.6",
+    "nevergrad>=1.0",
+    "casadi>=3.6",
+    "cvxpy>=1.4",
+    "fastapi>=0.111",
+    "uvicorn>=0.29",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.2",
+    "pyyaml>=6.0",
+    "pyarrow>=15.0",
+    "zarr>=2.18",
+    "duckdb>=0.10",
+    "plotly>=5.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.9",
+    "pre-commit>=3.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "ANN"]
+ignore = ["ANN101", "ANN102"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.uv]
+override-dependencies = [
+    "astropy>=6.0"
+]
