@@ -9,6 +9,8 @@ import math
 
 import numpy as np
 
+from astra.physics.exceptions import LambertConvergenceError, LambertSingularityError
+
 
 def lambert_izzo(
     r1: np.ndarray,
@@ -33,10 +35,18 @@ def lambert_izzo(
 
     Returns
     -------
-    v1      : initial velocity [km/s]
-    v2      : final velocity [km/s]
+    v1      : initial velocity [km/s] (float64)
+    v2      : final velocity [km/s] (float64)
     converged: True if solution converged within tolerance
+
+    Raises
+    ------
+    LambertSingularityError : if transfer geometry is singular or time of flight is invalid.
+    LambertConvergenceError : if the solver fails to converge.
     """
+    if tof <= 0.0:
+        raise LambertSingularityError(f"Time of flight must be strictly positive. Got: {tof}")
+
     r1_norm = float(np.linalg.norm(r1))
     r2_norm = float(np.linalg.norm(r2))
 
@@ -44,13 +54,18 @@ def lambert_izzo(
     cross_r = np.cross(r1, r2)
     cross_norm = float(np.linalg.norm(cross_r))
     if cross_norm < 1e-10:
-        return np.zeros(3), np.zeros(3), False
+        raise LambertSingularityError(
+            f"Collinear transfer geometry (cross norm = {cross_norm:.2e} < 1e-10). "
+            f"Lambert solver cannot uniquely resolve orbital plane."
+        )
 
     c = r2 - r1
     c_norm = float(np.linalg.norm(c))
 
     # Semiperimeter
     s = (r1_norm + r2_norm + c_norm) * 0.5
+    if s <= 0.0:
+        raise LambertSingularityError(f"Invalid semiperimeter: {s} <= 0")
 
     # Versors
     i_r1 = r1 / r1_norm
@@ -92,6 +107,7 @@ def lambert_izzo(
     # Householder iterations
     x = x0
     converged = False
+    dx = 0.0
 
     for _ in range(max_iter):
         y = math.sqrt(1.0 - ll**2 * (1.0 - x**2))
@@ -139,6 +155,12 @@ def lambert_izzo(
             converged = True
             break
 
+    if not converged:
+        raise LambertConvergenceError(
+            f"Lambert solver failed to converge within {max_iter} iterations "
+            f"with tolerance {tol}. Last step size: {abs(dx):.2e}"
+        )
+
     # Final y computation
     y = math.sqrt(1.0 - ll**2 * (1.0 - x**2))
 
@@ -152,7 +174,10 @@ def lambert_izzo(
     V_t1 = gamma * sigma * (y + ll * x) / r1_norm
     V_t2 = gamma * sigma * (y + ll * x) / r2_norm
 
-    v1 = V_r1 * i_r1 + V_t1 * i_t1
-    v2 = V_r2 * i_r2 + V_t2 * i_t2
+    v1 = np.asarray(V_r1 * i_r1 + V_t1 * i_t1, dtype=np.float64)
+    v2 = np.asarray(V_r2 * i_r2 + V_t2 * i_t2, dtype=np.float64)
+
+    assert v1.dtype == np.float64, "v1 must be float64"
+    assert v2.dtype == np.float64, "v2 must be float64"
 
     return v1, v2, converged
