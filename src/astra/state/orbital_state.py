@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
@@ -40,6 +40,21 @@ GM: dict[str, float] = {
     "NEPTUNE": 6.836529e6,
 }
 
+# Equatorial physical radii [km] for collision detection
+PHYSICAL_RADIUS: dict[CelestialBody, float] = {
+    CelestialBody.SUN: 696340.0,
+    CelestialBody.MERCURY: 2439.7,
+    CelestialBody.VENUS: 6051.8,
+    CelestialBody.EARTH: 6378.137,
+    CelestialBody.MOON: 1737.4,
+    CelestialBody.MARS: 3389.5,
+    CelestialBody.JUPITER: 71492.0,
+    CelestialBody.SATURN: 60268.0,
+    CelestialBody.URANUS: 25559.0,
+    CelestialBody.NEPTUNE: 24764.0,
+    CelestialBody.PLUTO: 1188.3,
+}
+
 @dataclass
 class OrbitalState:
     """Cartesian orbital state in specified reference frame."""
@@ -48,10 +63,13 @@ class OrbitalState:
     velocity: np.ndarray                  # [vx, vy, vz] km/s
     frame: ReferenceFrame = ReferenceFrame.ICRF
     central_body: CelestialBody = CelestialBody.SUN
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.position = np.asarray(self.position, dtype=np.float64)
         self.velocity = np.asarray(self.velocity, dtype=np.float64)
+        assert self.position.dtype == np.float64, "position must be float64"
+        assert self.velocity.dtype == np.float64, "velocity must be float64"
         assert self.position.shape == (3,), "position must be shape (3,)"
         assert self.velocity.shape == (3,), "velocity must be shape (3,)"
 
@@ -95,7 +113,7 @@ class OrbitalState:
         return float(np.linalg.norm(self.eccentricity_vector))
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        res = {
             "epoch_j2000": self.epoch,
             "position_km": self.position.tolist(),
             "velocity_km_s": self.velocity.tolist(),
@@ -106,3 +124,6 @@ class OrbitalState:
             "sma_km": self.semi_major_axis,
             "eccentricity": self.eccentricity,
         }
+        if self.metadata:
+            res["metadata"] = self.metadata
+        return res

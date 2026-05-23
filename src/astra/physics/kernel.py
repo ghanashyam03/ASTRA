@@ -1,13 +1,16 @@
-"""Main physics kernel — unified interface to all physics computations."""
+"""Main physics kernel — unified interface to all physics computations.
+Coordinates orbital propagation, ephemeris queries, and Lambert boundary value solvers.
+"""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
-from astra.physics.ephemeris import EphemerisEngine
+from astra.physics.ephemeris import EphemerisEngine, EphemerisTarget
 from astra.physics.lambert import lambert_izzo
-from astra.physics.propagator import propagate_two_body
+from astra.physics.propagator import Integrator, propagate_two_body
 from astra.state.orbital_state import CelestialBody, OrbitalState
 
 
@@ -26,9 +29,17 @@ class PhysicsKernel:
         return self
 
     def get_body_state(
-        self, body: CelestialBody, epoch_j2000: float
+        self,
+        target: CelestialBody | EphemerisTarget,
+        epoch_j2000: float,
+        observer: CelestialBody | EphemerisTarget | str = "SUN",
+        frame: str = "ECLIPJ2000",
+        central_body: Optional[CelestialBody] = None,
     ) -> OrbitalState:
-        return self.ephemeris.get_body_state(body, epoch_j2000)
+        """Query state vectors relative to an observer using precise ephemerides."""
+        return self.ephemeris.get_body_state(
+            target, epoch_j2000, observer=observer, frame=frame, central_body=central_body
+        )
 
     def lambert_solve(
         self,
@@ -38,13 +49,24 @@ class PhysicsKernel:
         mu: float,
         retrograde: bool = False,
     ) -> tuple[np.ndarray, np.ndarray, bool]:
-        """Solve Lambert problem. Returns (v1, v2, converged)."""
+        """Solve Lambert BVP using Householder/Halley iterative formulation.
+        
+        Raises LambertSingularityError or LambertConvergenceError on failures.
+        """
         return lambert_izzo(r1, r2, tof_seconds, mu, retrograde)
 
     def propagate(
-        self, state: OrbitalState, dt_seconds: float
+        self,
+        state: OrbitalState,
+        dt_seconds: float,
+        rtol: float = 1e-10,
+        atol: float = 1e-12,
+        integrator: Optional[Integrator] = None,
     ) -> OrbitalState:
-        return propagate_two_body(state, dt_seconds)
+        """Numerically propagate Keplerian state using configurable integrators and collision safety checks."""
+        return propagate_two_body(
+            state, dt_seconds, rtol=rtol, atol=atol, integrator=integrator
+        )
 
     def compute_delta_v(
         self, state: OrbitalState, target_velocity: np.ndarray
@@ -53,7 +75,9 @@ class PhysicsKernel:
         return float(np.linalg.norm(target_velocity - state.velocity))
 
     def epoch_from_date(self, iso_date: str) -> float:
+        """Convert ISO date string to J2000 seconds via SPICE."""
         return self.ephemeris.epoch_from_date(iso_date)
 
     def date_from_epoch(self, epoch: float) -> str:
+        """Convert J2000 seconds to ISO date string via SPICE."""
         return self.ephemeris.date_from_epoch(epoch)

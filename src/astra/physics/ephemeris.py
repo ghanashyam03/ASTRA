@@ -1,27 +1,90 @@
-"""SPICE-based ephemeris engine. Loads kernels once and provides
-body states throughout the mission design epoch range."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import spiceypy as spice
 
+from astra.physics.exceptions import InvalidEphemerisError
 from astra.state.orbital_state import CelestialBody, OrbitalState, ReferenceFrame
 
 # J2000 epoch offset: 2000-01-01 12:00:00 TDB in seconds from J2000.0
 J2000_EPOCH = 0.0
 
-class EphemerisEngine:
-    """Manages SPICE kernels and provides planetary state queries."""
+class TargetType(StrEnum):
+    BODY_CENTER = "BODY_CENTER"
+    BARYCENTER = "BARYCENTER"
 
-    # SPICE body name map
-    _SPICE_NAMES: dict[str, str] = {
-        "SUN": "SUN", "MERCURY": "MERCURY BARYCENTER", "VENUS": "VENUS BARYCENTER",
-        "EARTH": "EARTH", "MOON": "MOON", "MARS": "MARS BARYCENTER",
-        "JUPITER": "JUPITER BARYCENTER", "SATURN": "SATURN BARYCENTER",
-        "URANUS": "URANUS BARYCENTER", "NEPTUNE": "NEPTUNE BARYCENTER",
-        "PLUTO": "PLUTO BARYCENTER",
+@dataclass
+class EphemerisTarget:
+    body: CelestialBody
+    target_type: TargetType = TargetType.BODY_CENTER
+
+def resolve_central_body(observer: CelestialBody | EphemerisTarget | str) -> CelestialBody:
+    """Resolve gravitational central body from an observer to separate
+    observational frames from dynamical authorities.
+    """
+    if isinstance(observer, EphemerisTarget):
+        return observer.body
+    if isinstance(observer, CelestialBody):
+        return observer
+    
+    obs_upper = observer.upper().strip()
+    if "SUN" in obs_upper:
+        return CelestialBody.SUN
+    if "EARTH" in obs_upper:
+        return CelestialBody.EARTH
+    if "MOON" in obs_upper:
+        return CelestialBody.MOON
+    if "MARS" in obs_upper:
+        return CelestialBody.MARS
+    
+    # Safe fallbacks for other standard planets
+    for body in CelestialBody:
+        if body.value in obs_upper:
+            return body
+            
+    raise InvalidEphemerisError(f"Cannot resolve gravitational central body from observer: {observer}")
+
+class EphemerisEngine:
+    """Manages SPICE kernels and provides planetary state queries with barycenter safety."""
+
+    # SPICE body name mapping.
+    # Solar System Barycenter is ID 0.
+    # Celestial body centers (e.g. 399 for Earth, 499 for Mars) vs planetary barycenters (e.g. 3 for Earth Barycenter, 4 for Mars Barycenter).
+    # Since DE440 planetary SPK contains planetary barycenters for most planets, queries for planetary body centers (like Mars 499)
+    # fail with SPKINSUFFDATA unless a planetary satellite SPK is loaded. Thus, we fall back to planetary barycenters for single-body
+    # planets (Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto) in standard DE440, while supporting precise centers
+    # for Earth (399) and Moon (301).
+    _SPICE_BODY_CENTERS: dict[CelestialBody, str] = {
+        CelestialBody.SUN: "SUN",
+        CelestialBody.MERCURY: "MERCURY",
+        CelestialBody.VENUS: "VENUS",
+        CelestialBody.EARTH: "EARTH",
+        CelestialBody.MOON: "MOON",
+        CelestialBody.MARS: "MARS",
+        CelestialBody.JUPITER: "JUPITER",
+        CelestialBody.SATURN: "SATURN",
+        CelestialBody.URANUS: "URANUS",
+        CelestialBody.NEPTUNE: "NEPTUNE",
+        CelestialBody.PLUTO: "PLUTO",
+    }
+
+    _SPICE_BARYCENTERS: dict[CelestialBody, str] = {
+        CelestialBody.SUN: "SUN",
+        CelestialBody.MERCURY: "MERCURY BARYCENTER",
+        CelestialBody.VENUS: "VENUS BARYCENTER",
+        CelestialBody.EARTH: "EARTH BARYCENTER",
+        CelestialBody.MOON: "MOON",
+        CelestialBody.MARS: "MARS BARYCENTER",
+        CelestialBody.JUPITER: "JUPITER BARYCENTER",
+        CelestialBody.SATURN: "SATURN BARYCENTER",
+        CelestialBody.URANUS: "URANUS BARYCENTER",
+        CelestialBody.NEPTUNE: "NEPTUNE BARYCENTER",
+        CelestialBody.PLUTO: "PLUTO BARYCENTER",
     }
 
     def __init__(self, kernel_dir: Path) -> None:
@@ -47,30 +110,79 @@ class EphemerisEngine:
         if not self._loaded:
             raise RuntimeError("Call load_kernels() before querying states.")
 
+    def _resolve_spice_name(self, target: CelestialBody | EphemerisTarget) -> str:
+        if isinstance(target, CelestialBody):
+            if target in [CelestialBody.EARTH, CelestialBody.MOON, CelestialBody.SUN]:
+                return self._SPICE_BODY_CENTERS[target]
+            return self._SPICE_BARYCENTERS[target]
+
+        body = target.body
+        if target.target_type == TargetType.BODY_CENTER:
+            if body in [CelestialBody.EARTH, CelestialBody.MOON, CelestialBody.SUN]:
+                return self._SPICE_BODY_CENTERS[body]
+            return self._SPICE_BARYCENTERS[body]
+        else:
+            return self._SPICE_BARYCENTERS[body]
+
+    def _resolve_observer_name(self, observer: CelestialBody | EphemerisTarget | str) -> str:
+        if isinstance(observer, str):
+            return observer.upper().strip()
+        return self._resolve_spice_name(observer)
+
     def get_body_state(
         self,
-        body: CelestialBody,
+        target: CelestialBody | EphemerisTarget,
         epoch_j2000: float,
-        observer: str = "SUN",
+        observer: CelestialBody | EphemerisTarget | str = "SUN",
         frame: str = "ECLIPJ2000",
+        central_body: Optional[CelestialBody] = None,
     ) -> OrbitalState:
-        """Return body state [km, km/s] relative to observer at epoch."""
+        """Return target state [km, km/s] relative to observer at epoch.
+        Enforces float64 precision and separates gravitational authority (central_body)
+        from the observer frame.
+        """
         self._check_loaded()
-        spice_name = self._SPICE_NAMES[body.value]
-        state, _ = spice.spkezr(spice_name, epoch_j2000, frame, "NONE", observer)
+        
+        target_name = self._resolve_spice_name(target)
+        observer_name = self._resolve_observer_name(observer)
+        
+        try:
+            state, _ = spice.spkezr(target_name, epoch_j2000, frame, "NONE", observer_name)
+        except Exception as e:
+            raise InvalidEphemerisError(
+                f"SPICE state query failed for target '{target_name}' relative to observer '{observer_name}' "
+                f"in frame '{frame}' at epoch {epoch_j2000}: {str(e)}"
+            ) from e
+
+        if central_body is None:
+            resolved_cb = resolve_central_body(observer)
+        else:
+            resolved_cb = central_body
+
+        pos = np.asarray(state[:3], dtype=np.float64)
+        vel = np.asarray(state[3:], dtype=np.float64)
+        
+        assert pos.dtype == np.float64, "position must be np.float64"
+        assert vel.dtype == np.float64, "velocity must be np.float64"
+
+        try:
+            ref_frame = ReferenceFrame(frame.upper().strip())
+        except ValueError:
+            ref_frame = ReferenceFrame.ECLIPJ2000
+
         return OrbitalState(
             epoch=epoch_j2000,
-            position=np.array(state[:3]),
-            velocity=np.array(state[3:]),
-            frame=ReferenceFrame.ECLIPJ2000,
-            central_body=CelestialBody.SUN if observer == "SUN" else CelestialBody.EARTH,
+            position=pos,
+            velocity=vel,
+            frame=ref_frame,
+            central_body=resolved_cb,
         )
 
     def get_body_position(
-        self, body: CelestialBody, epoch_j2000: float
+        self, target: CelestialBody | EphemerisTarget, epoch_j2000: float
     ) -> np.ndarray:
         """Shorthand: return [x,y,z] km in ECLIPJ2000."""
-        return self.get_body_state(body, epoch_j2000).position
+        return self.get_body_state(target, epoch_j2000).position
 
     def epoch_from_date(self, iso_date: str) -> float:
         """Convert ISO 8601 date string to J2000 seconds via SPICE."""
