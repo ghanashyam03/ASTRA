@@ -16,7 +16,13 @@ ASTRA is a premium, physics-constrained orbital trajectory optimization and miss
 ### 2. ASTRA Mission DSL (`astra.dsl`)
 *   **Strict Pydantic v2 Schema**: High-level validation models verifying dry mass, fuel mass, Isp boundaries, time-of-flight spans, launch windows, constraints, and objective weights.
 *   **YAML/JSON Parsers**: Robust parser utility matching standard YAML/JSON specs directly to schemas.
-*   **Mission Compiler**: Compiles high-level user specifications into domain-level strongly typed constructs (`Spacecraft`, `PropulsionSystem`, `CelestialBody`) and converts UTC epochs to J2000 barycentric dynamical time (TDB) seconds automatically.
+*   **Mission Compiler**: Compiles high-level user specifications into domain-level strongly typed constructs (`Spacecraft`, `PropulsionSystem`, `CelestialBody`) and converts UTC epochs to J2000 barycentric dynamical time (TDB) seconds automatically using naive date string ISO-format parameters.
+
+### 3. Trajectory Optimization Engine (`astra.optimization`)
+*   **Search Space boundaries (`SearchSpace`)**: Tracks and structures parameters for J2000 departure epochs and time-of-flight seconds.
+*   **Porkchop Grid Computation (`compute_porkchop`)**: Calculates precise grid points of departure dates and time of flight, querying SPICE targets and performing Lambert solutions to map orbital feasibility.
+*   **Multi-Objective TPE Optimizer (`optimize_mission_bayesian`)**: Employs Optuna TPE and NSGA-II multi-objective samplers to evaluate optimal trade-offs between flight duration and total launch/capture $\Delta v$, returning best feasible solutions and complete Pareto-front structures.
+*   **Maneuvers & Trajectories (`astra.state.trajectory`)**: Houses complete representations of impulsive orbital maneuvers (`Maneuver`) and multi-impulse orbital transfers (`Trajectory`).
 
 ---
 
@@ -32,9 +38,11 @@ astra/
 ├── src/
 │   └── astra/
 │       ├── dsl/                      # Mission DSL, Parser, Schema, Compiler
+│       ├── optimization/             # Porkchop computation, Bayesian optimizer, Search Space
 │       ├── physics/                  # Lambert Solver, Ephemeris Engine, Propagator
-│       └── state/                    # Spacecraft and Orbital State Primitives
+│       └── state/                    # Spacecraft, Trajectory, and Orbital Primitives
 └── tests/
+    ├── integration/                  # End-to-End Optimization integration tests
     └── unit/
         ├── dsl/                      # Mission DSL Unit Tests
         ├── physics/                  # Physics Core Unit Tests
@@ -48,8 +56,8 @@ astra/
 ### 1. Developer Setup
 Standard Python environments are managed via the high-performance `uv` package manager:
 ```powershell
-# Run the entire automated test suite (all 18 unit tests)
-uv run pytest
+# Run the entire automated test suite (21 unit and integration tests)
+uv run pytest -v
 
 # Check code styling and lint compliance
 uv run ruff check src tests
@@ -75,23 +83,41 @@ print(f"Spacecraft Name: {compiled.spacecraft.name}")
 print(f"Target Origin: {compiled.origin_body.value}")
 ```
 
-### 3. Basic Orbital Propagation
+### 3. Compute Porkchop Plot Grid
 ```python
 import numpy as np
-from astra.state import OrbitalState, CelestialBody, ReferenceFrame
-from astra.physics import propagate_two_body
+from astra.physics import PhysicsKernel
+from astra.dsl import parse_mission_file, compile_mission
+from astra.optimization import compute_porkchop
 
-# Initialize a low-Earth orbit state (float64)
-state = OrbitalState(
-    epoch=0.0,
-    position=np.array([6778.137, 0.0, 0.0], dtype=np.float64),
-    velocity=np.array([0.0, 7.668, 0.0], dtype=np.float64),
-    frame=ReferenceFrame.J2000,
-    central_body=CelestialBody.EARTH
-)
+# Load SPICE and parse reference Earth-Mars 2031 mission
+kernel = PhysicsKernel().load()
+dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
+mission = compile_mission(dsl, kernel.ephemeris)
 
-# Propagate state by one orbit duration
-final_state = propagate_two_body(state, dt_seconds=5400.0)
-print(f"Final Position: {final_state.position} km")
-print(f"Integration Steps: {final_state.metadata['nsteps']}")
+# Compute a 50x50 porkchop grid of launch opportunities
+dep_epochs, tof_days, dv_grid = compute_porkchop(mission, kernel, n_dep=50, n_tof=50)
+print(f"Computed grid shape: {dv_grid.shape}")
+print(f"Minimum solved Δv: {np.nanmin(dv_grid):.3f} km/s")
+```
+
+### 4. Bayesian Multi-Objective Optimization
+```python
+from astra.physics import PhysicsKernel
+from astra.dsl import parse_mission_file, compile_mission
+from astra.optimization import optimize_mission_bayesian
+
+# Load SPICE and compile mission
+kernel = PhysicsKernel().load()
+dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
+mission = compile_mission(dsl, kernel.ephemeris)
+
+# Optimize trajectory trade-offs (TPE T/NSGA-II)
+result = optimize_mission_bayesian(mission, kernel, n_trials=500, time_limit=60.0)
+
+if result.converged and result.best_trajectory:
+    print(f"Optimizer found a feasible transfer!")
+    print(f"Best Delta-V Total: {result.best_trajectory.delta_v_total:.3f} km/s")
+    print(f"Transfer Duration: {result.best_trajectory.duration_days:.1f} days")
+    print(f"Pareto Front Size: {len(result.pareto_front)}")
 ```
