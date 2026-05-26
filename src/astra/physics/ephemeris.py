@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import spiceypy as spice
@@ -47,18 +46,22 @@ def resolve_central_body(observer: CelestialBody | EphemerisTarget | str) -> Cel
         if body.value in obs_upper:
             return body
             
-    raise InvalidEphemerisError(f"Cannot resolve gravitational central body from observer: {observer}")
+    raise InvalidEphemerisError(
+        f"Cannot resolve gravitational central body from observer: {observer}"
+    )
 
 class EphemerisEngine:
     """Manages SPICE kernels and provides planetary state queries with barycenter safety."""
 
     # SPICE body name mapping.
     # Solar System Barycenter is ID 0.
-    # Celestial body centers (e.g. 399 for Earth, 499 for Mars) vs planetary barycenters (e.g. 3 for Earth Barycenter, 4 for Mars Barycenter).
-    # Since DE440 planetary SPK contains planetary barycenters for most planets, queries for planetary body centers (like Mars 499)
-    # fail with SPKINSUFFDATA unless a planetary satellite SPK is loaded. Thus, we fall back to planetary barycenters for single-body
-    # planets (Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto) in standard DE440, while supporting precise centers
-    # for Earth (399) and Moon (301).
+    # Celestial body centers (e.g. 399 for Earth, 499 for Mars) vs planetary barycenters
+    # (e.g. 3 for Earth Barycenter, 4 for Mars Barycenter).
+    # Since DE440 planetary SPK contains planetary barycenters for most planets, queries for
+    # planetary body centers (like Mars 499) fail with SPKINSUFFDATA unless a planetary
+    # satellite SPK is loaded. Thus, we fall back to planetary barycenters for single-body
+    # planets (Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto) in standard
+    # DE440, while supporting precise centers for Earth (399) and Moon (301).
     _SPICE_BODY_CENTERS: dict[CelestialBody, str] = {
         CelestialBody.SUN: "SUN",
         CelestialBody.MERCURY: "MERCURY",
@@ -135,7 +138,7 @@ class EphemerisEngine:
         epoch_j2000: float,
         observer: CelestialBody | EphemerisTarget | str = "SUN",
         frame: str = "ECLIPJ2000",
-        central_body: Optional[CelestialBody] = None,
+        central_body: CelestialBody | None = None,
     ) -> OrbitalState:
         """Return target state [km, km/s] relative to observer at epoch.
         Enforces float64 precision and separates gravitational authority (central_body)
@@ -150,8 +153,9 @@ class EphemerisEngine:
             state, _ = spice.spkezr(target_name, epoch_j2000, frame, "NONE", observer_name)
         except Exception as e:
             raise InvalidEphemerisError(
-                f"SPICE state query failed for target '{target_name}' relative to observer '{observer_name}' "
-                f"in frame '{frame}' at epoch {epoch_j2000}: {str(e)}"
+                f"SPICE state query failed for target '{target_name}' "
+                f"relative to observer '{observer_name}' in frame '{frame}' "
+                f"at epoch {epoch_j2000}: {str(e)}"
             ) from e
 
         if central_body is None:

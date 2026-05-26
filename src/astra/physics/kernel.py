@@ -4,7 +4,6 @@ Coordinates orbital propagation, ephemeris queries, and Lambert boundary value s
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -34,7 +33,7 @@ class PhysicsKernel:
         epoch_j2000: float,
         observer: CelestialBody | EphemerisTarget | str = "SUN",
         frame: str = "ECLIPJ2000",
-        central_body: Optional[CelestialBody] = None,
+        central_body: CelestialBody | None = None,
     ) -> OrbitalState:
         """Query state vectors relative to an observer using precise ephemerides."""
         return self.ephemeris.get_body_state(
@@ -61,9 +60,11 @@ class PhysicsKernel:
         dt_seconds: float,
         rtol: float = 1e-10,
         atol: float = 1e-12,
-        integrator: Optional[Integrator] = None,
+        integrator: Integrator | None = None,
     ) -> OrbitalState:
-        """Numerically propagate Keplerian state using configurable integrators and collision safety checks."""
+        """Numerically propagate Keplerian state using configurable integrators and
+        collision safety checks.
+        """
         return propagate_two_body(
             state, dt_seconds, rtol=rtol, atol=atol, integrator=integrator
         )

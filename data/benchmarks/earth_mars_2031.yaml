@@ -1,0 +1,58 @@
+version: "1.0"
+mission_id: "earth_mars_2031_fuel_optimal"
+
+spacecraft:
+  name: "Ares-1"
+  dry_mass_kg: 1800.0
+  fuel_mass_kg: 2400.0
+  propulsion:
+    type: chemical
+    isp_seconds: 450.0
+    thrust_newtons: 22000.0
+
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Mars
+    orbit:
+      type: elliptical
+      periapsis_km: 300.0
+      apoapsis_km: 80000.0
+
+launch_window:
+  start: "2031-01-01T00:00:00Z"
+  end: "2033-01-01T00:00:00Z"
+  resolution_days: 1
+  tof_min_days: 120
+  tof_max_days: 280
+
+constraints:
+  - type: max_delta_v
+    value_km_s: 8.0
+    hard: true
+  - type: max_duration
+    value_days: 250
+    hard: true
+
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+  - metric: time_of_flight
+    direction: minimize
+    weight: 0.3
+
+physics:
+  models: [patched_conics]
+  ephemeris: DE440
+
+optimization:
+  strategy: bayesian
+  budget:
+    max_evaluations: 2000
+    time_limit_seconds: 120
+  seed: 42

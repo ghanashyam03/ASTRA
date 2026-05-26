@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -33,13 +34,13 @@ class Integrator(ABC):
     @abstractmethod
     def integrate(
         self,
-        fun: Callable[[float, np.ndarray], np.ndarray],
+        fun: Callable[..., np.ndarray],
         t_span: tuple[float, float],
         y0: np.ndarray,
         rtol: float,
         atol: float,
-        t_eval: Optional[np.ndarray] = None,
-        **options: Any
+        t_eval: np.ndarray | None = None,
+        **options: Any  # noqa: ANN401
     ) -> IntegrationResult:
         """Solve initial value problem for the given differential equations."""
         pass
@@ -50,13 +51,13 @@ class RK45Integrator(Integrator):
 
     def integrate(
         self,
-        fun: Callable[[float, np.ndarray], np.ndarray],
+        fun: Callable[..., np.ndarray],
         t_span: tuple[float, float],
         y0: np.ndarray,
         rtol: float,
         atol: float,
-        t_eval: Optional[np.ndarray] = None,
-        **options: Any
+        t_eval: np.ndarray | None = None,
+        **options: Any  # noqa: ANN401
     ) -> IntegrationResult:
         sol = solve_ivp(
             fun,
@@ -104,7 +105,7 @@ def propagate_two_body(
     dt_seconds: float,
     rtol: float = 1e-10,
     atol: float = 1e-12,
-    integrator: Optional[Integrator] = None,
+    integrator: Integrator | None = None,
 ) -> OrbitalState:
     """Propagate state forward by dt_seconds using pluggable integrator.
     
@@ -125,12 +126,12 @@ def propagate_two_body(
         )
 
     # Setup terminal event for collision detection during integration
-    def collision_event(t: float, y: np.ndarray) -> float:
+    def collision_event(t: float, y: np.ndarray, *args: Any) -> float:  # noqa: ANN401
         r = y[:3]
         return float(np.linalg.norm(r) - r_min)
         
-    collision_event.terminal = True
-    collision_event.direction = -1
+    collision_event.terminal = True  # type: ignore[attr-defined]
+    collision_event.direction = -1  # type: ignore[attr-defined]
 
     y0 = np.concatenate([state.position, state.velocity]).astype(np.float64)
     assert y0.dtype == np.float64, "Initial state vector must be np.float64"
@@ -190,7 +191,7 @@ def propagate_to_times(
     times_seconds: np.ndarray,
     rtol: float = 1e-10,
     atol: float = 1e-12,
-    integrator: Optional[Integrator] = None,
+    integrator: Integrator | None = None,
 ) -> list[OrbitalState]:
     """Propagate to multiple time points. Returns list of OrbitalStates."""
     if integrator is None:
@@ -206,12 +207,12 @@ def propagate_to_times(
             f"r = {r0_norm:.3f} km, physical radius = {r_min:.3f} km"
         )
 
-    def collision_event(t: float, y: np.ndarray) -> float:
+    def collision_event(t: float, y: np.ndarray, *args: Any) -> float:  # noqa: ANN401
         r = y[:3]
         return float(np.linalg.norm(r) - r_min)
         
-    collision_event.terminal = True
-    collision_event.direction = -1
+    collision_event.terminal = True  # type: ignore[attr-defined]
+    collision_event.direction = -1  # type: ignore[attr-defined]
 
     y0 = np.concatenate([state.position, state.velocity]).astype(np.float64)
     mu = state.mu
