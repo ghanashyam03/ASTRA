@@ -48,8 +48,8 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
     If None, uses Python datetime → J2000 conversion."""
     # Epoch conversion
     if ephemeris is not None:
-        dep_start = ephemeris.epoch_from_date(dsl.launch_window.start.isoformat())
-        dep_end = ephemeris.epoch_from_date(dsl.launch_window.end.isoformat())
+        dep_start = ephemeris.epoch_from_date(dsl.launch_window.start.strftime("%Y-%m-%dT%H:%M:%S"))
+        dep_end = ephemeris.epoch_from_date(dsl.launch_window.end.strftime("%Y-%m-%dT%H:%M:%S"))
     else:
         # Fallback: compute J2000 seconds from datetime
         from datetime import datetime
