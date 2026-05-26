@@ -3,6 +3,7 @@ Ensures that all physical and numerical failures are explicit and loud.
 """
 from __future__ import annotations
 
+
 class PhysicsError(Exception):
     """Base exception for all ASTRA physics core errors."""
     pass
