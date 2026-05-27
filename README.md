@@ -24,6 +24,12 @@ ASTRA is a premium, physics-constrained orbital trajectory optimization and miss
 *   **Multi-Objective TPE Optimizer (`optimize_mission_bayesian`)**: Employs Optuna TPE and NSGA-II multi-objective samplers to evaluate optimal trade-offs between flight duration and total launch/capture $\Delta v$, returning best feasible solutions and complete Pareto-front structures.
 *   **Maneuvers & Trajectories (`astra.state.trajectory`)**: Houses complete representations of impulsive orbital maneuvers (`Maneuver`) and multi-impulse orbital transfers (`Trajectory`).
 
+### 4. Explainability Engine (`astra.explainability`)
+*   **Delta-V Budget Decompositions (`decompose_delta_v`)**: Breaks down launch and arrival maneuver magnitudes, percentages, and epoch points, applying a standard 3% navigation margin.
+*   **Launch Window Rationales (`build_window_rationale`)**: Analyzes planetary phase angles at departure, synodic orbits, and departure C3 energies to generate computed rationales explaining optimal departure dates.
+*   **Constraint Compliance Analysis (`analyze_constraints`)**: Identifies margins and boundary-binding limits (within 5% of constraint margins) for total transfer $\Delta v$ and flight duration.
+*   **Pareto Tradeoff Interpretation (`analyze_pareto`)**: Computes optimal slope parameters (e.g. extra $\Delta v$ required per day saved) to interpret duration vs propellant trade-offs quantitatively across Pareto fronts.
+
 ---
 
 ## Repository Structure
@@ -38,6 +44,7 @@ astra/
 ├── src/
 │   └── astra/
 │       ├── dsl/                      # Mission DSL, Parser, Schema, Compiler
+│       ├── explainability/           # Delta-V breakdowns, window rationales, constraints
 │       ├── optimization/             # Porkchop computation, Bayesian optimizer, Search Space
 │       ├── physics/                  # Lambert Solver, Ephemeris Engine, Propagator
 │       └── state/                    # Spacecraft, Trajectory, and Orbital Primitives
@@ -45,6 +52,7 @@ astra/
     ├── integration/                  # End-to-End Optimization integration tests
     └── unit/
         ├── dsl/                      # Mission DSL Unit Tests
+        ├── explainability/           # Explainability Unit Tests
         ├── physics/                  # Physics Core Unit Tests
         └── state/                    # Primitive Primitives Unit Tests
 ```
@@ -56,7 +64,7 @@ astra/
 ### 1. Developer Setup
 Standard Python environments are managed via the high-performance `uv` package manager:
 ```powershell
-# Run the entire automated test suite (21 unit and integration tests)
+# Run the entire automated test suite (26 unit and integration tests)
 uv run pytest -v
 
 # Check code styling and lint compliance
@@ -112,7 +120,7 @@ kernel = PhysicsKernel().load()
 dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
 mission = compile_mission(dsl, kernel.ephemeris)
 
-# Optimize trajectory trade-offs (TPE T/NSGA-II)
+# Optimize trajectory trade-offs (TPE / NSGA-II)
 result = optimize_mission_bayesian(mission, kernel, n_trials=500, time_limit=60.0)
 
 if result.converged and result.best_trajectory:
@@ -120,4 +128,34 @@ if result.converged and result.best_trajectory:
     print(f"Best Delta-V Total: {result.best_trajectory.delta_v_total:.3f} km/s")
     print(f"Transfer Duration: {result.best_trajectory.duration_days:.1f} days")
     print(f"Pareto Front Size: {len(result.pareto_front)}")
+```
+
+### 5. Trajectory Rationale & Explanations
+```python
+from astra.physics import PhysicsKernel
+from astra.dsl import parse_mission_file, compile_mission
+from astra.optimization import optimize_mission_bayesian
+from astra.explainability import explain
+
+kernel = PhysicsKernel().load()
+dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
+mission = compile_mission(dsl, kernel.ephemeris)
+result = optimize_mission_bayesian(mission, kernel, n_trials=500, time_limit=60.0)
+
+if result.best_trajectory:
+    # Generate full explainability trace from actual computations
+    trace = explain(
+        trajectory=result.best_trajectory,
+        mission=mission,
+        pareto_front=result.pareto_front,
+        ephemeris=kernel.ephemeris
+    )
+    
+    # Export explanations to dictionary
+    explanation_data = trace.to_dict()
+    
+    print(f"Window Phase Angle: {explanation_data['window_rationale']['planet_phase_angle_deg']}°")
+    print(f"Tradeoff Saved Day: {explanation_data['pareto_analysis']['avg_tradeoff_km_s_per_day']} km/s")
+    for point in explanation_data['window_rationale']['rationale']:
+        print(f"  - {point}")
 ```
