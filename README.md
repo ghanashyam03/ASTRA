@@ -159,3 +159,37 @@ if result.best_trajectory:
     for point in explanation_data['window_rationale']['rationale']:
         print(f"  - {point}")
 ```
+
+---
+
+## FastAPI API Layer & Trajectory Storage (`astra.api` and `astra.data`)
+
+ASTRA exposes a standard, high-performance FastAPI web application layer to query celestial bodies, calculate porkchop opportunity grids, serialize 3D trajectory rendering-ready data structures, and persist optimization runs.
+
+### Persistence & Databases
+*   **DuckDB Trajectory Persistent Storage**:
+    *   **Development / Production Default**: Optimization results and computed trajectory details automatically persist to `data/astra.duckdb` locally.
+    *   **Testing Mode**: When running integration tests, ASTRA overrides the store to run strictly inside a transient, fast in-memory DuckDB environment (`:memory:`).
+*   **In-Memory Job Tracking (Non-persistent)**:
+    *   Long-running optimization requests (`POST /v1/missions/optimize`) are queued to FastAPI `BackgroundTasks` as an asynchronous job.
+    *   **Crucial Limitation**: The active optimization job state is held strictly in an in-memory dictionary. Active/historical job records and status logs **do not persist** across server restarts.
+
+### API Limitations
+*   **Single-rev Transfers Only**: The under-the-hood Lambert solvers and patched-conics propagators are limited to single-revolution two-body orbital transfers.
+*   **Single-Worker/Thread Handoff**: The global, in-memory SPICE physics kernel loads dynamically at startup and behaves as a singleton worker resource.
+*   **Degraded Mode Support**: If local SPICE ephemeris files are missing during server startup, ASTRA boots gracefully into a degraded mode. Under degraded mode, standard health checks pass, but precise body state lookups and optimization requests will return 503 Service Unavailable or 400 Bad Request error codes.
+
+### Current Supported Endpoints
+*   `GET /v1/health` - Inspect ASTRA service status and see if SPICE ephemeris engine is loaded.
+*   `POST /v1/missions/optimize` - Queue an asynchronous Bayesian trajectory optimization job using a YAML mission specification string.
+*   `GET /v1/missions/{job_id}/status` - Poll optimization job status (`queued`, `running`, `complete`, `failed`).
+*   `GET /v1/missions/{job_id}/result` - Retrieve the complete optimization result dictionary once completed.
+*   `GET /v1/trajectories/{trajectory_id}` - Fetch a stored trajectory record from DuckDB.
+*   `GET /v1/trajectories/{trajectory_id}/explanation` - Retrieve the explainability trace details associated with a trajectory.
+*   `GET /v1/bodies/{body_name}/state` - Query double-precision state vector positions/velocities relative to the Sun.
+*   `POST /v1/windows/porkchop` - Compute a detailed launch/arrival time-of-flight porkchop energy grid.
+
+### Current Visualization Capabilities (`astra.visualization`)
+*   **3D Trajectory Rendering Data**: Integrates astronomical-unit scaling to serialize spacecraft coordinates, maneuver epoch vectors, and planetary tracks into beautiful, browser-ready structures (`build_render_data()`).
+*   **Plotly-Ready Porkchops**: Converts raw grid arrays into serialized Plotly-ready contour maps (`build_porkchop_plot()`), replacing NaN values with JSON-serializable `None` values and identifying the global energy minimum.
+

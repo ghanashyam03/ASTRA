@@ -62,3 +62,8 @@ asyncio_mode = "auto"
 override-dependencies = [
     "astropy>=6.0"
 ]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+]
