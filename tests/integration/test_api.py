@@ -1,23 +1,32 @@
+from __future__ import annotations
+
+from collections.abc import Generator
+
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+
+from astra.data.storage import TrajectoryStore
+from astra.state.orbital_state import CelestialBody, OrbitalState
+from astra.state.trajectory import Maneuver, Trajectory
 
 EARTH_MARS_YAML = open("data/benchmarks/earth_mars_2031.yaml").read()
 
 @pytest.fixture(scope="module")
-def client():
+def client() -> Generator[TestClient, None, None]:
     from astra.api.app import app
     app.state.db_path = ":memory:"
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
 
-def test_health_endpoint(client):
+def test_health_endpoint(client: TestClient) -> None:
     resp = client.get("/v1/health")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
     assert "version" in data
 
-def test_optimize_returns_job_id(client):
+def test_optimize_returns_job_id(client: TestClient) -> None:
     resp = client.post("/v1/missions/optimize",
                        json={"mission_yaml": EARTH_MARS_YAML})
     assert resp.status_code == 202
@@ -25,7 +34,7 @@ def test_optimize_returns_job_id(client):
     assert "job_id" in data
     assert data["status"] == "queued"
 
-def test_status_endpoint(client):
+def test_status_endpoint(client: TestClient) -> None:
     resp = client.post("/v1/missions/optimize",
                        json={"mission_yaml": EARTH_MARS_YAML})
     job_id = resp.json()["job_id"]
@@ -33,20 +42,15 @@ def test_status_endpoint(client):
     assert resp2.status_code == 200
     assert "status" in resp2.json()
 
-def test_unknown_job_404(client):
+def test_unknown_job_404(client: TestClient) -> None:
     resp = client.get("/v1/missions/nonexistent-uuid-123/status")
     assert resp.status_code == 404
 
-def test_trajectory_not_found(client):
+def test_trajectory_not_found(client: TestClient) -> None:
     resp = client.get("/v1/trajectories/nonexistent-uuid-999")
     assert resp.status_code == 404
 
-def test_trajectory_store_save_and_retrieve():
-    from astra.data.storage import TrajectoryStore
-    from astra.state.trajectory import Trajectory, Maneuver
-    from astra.state.orbital_state import OrbitalState, CelestialBody
-    import numpy as np
-
+def test_trajectory_store_save_and_retrieve() -> None:
     # Create a real trajectory record
     s1 = OrbitalState(
         epoch=0.0,
