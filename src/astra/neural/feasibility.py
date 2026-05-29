@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 class FeasibilityClassifier:
     """Stub/mock neural feasibility classifier for trajectory validation."""
 
