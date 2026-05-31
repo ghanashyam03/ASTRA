@@ -37,6 +37,9 @@ dev = [
     "pre-commit>=3.7",
 ]
 
+[project.scripts]
+astra = "astra.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

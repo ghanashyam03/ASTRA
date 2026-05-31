@@ -57,3 +57,12 @@ benchmarks/output/
 
 # Parquet outputs
 *.parquet
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Runtime outputs
+*_result.json
+results/
+outputs/
