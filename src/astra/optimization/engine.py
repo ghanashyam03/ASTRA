@@ -264,6 +264,9 @@ def optimize_mission_neural_accelerated(
     mu_sun = GM["SUN"]
     max_dv, max_days = _get_hard_limits(mission)
 
+    # Seed global numpy random state for neural network weight initialization and data shuffling determinism
+    np.random.seed(seed)
+
     # Phase 1: generate training data
     logger.info(f"Generating {pretrain_samples} samples for neural pretraining...")
     X, dv_y, feas_y = generate_transfer_dataset(
@@ -284,7 +287,6 @@ def optimize_mission_neural_accelerated(
     logger.info("Feasibility classifier trained.")
 
     # Phase 3: Bayesian optimization with neural filter
-    import numpy as np
     import optuna
     all_trajs: list[Trajectory] = []
     n_skipped = 0
