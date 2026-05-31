@@ -193,3 +193,48 @@ ASTRA exposes a standard, high-performance FastAPI web application layer to quer
 *   **3D Trajectory Rendering Data**: Integrates astronomical-unit scaling to serialize spacecraft coordinates, maneuver epoch vectors, and planetary tracks into beautiful, browser-ready structures (`build_render_data()`).
 *   **Plotly-Ready Porkchops**: Converts raw grid arrays into serialized Plotly-ready contour maps (`build_porkchop_plot()`), replacing NaN values with JSON-serializable `None` values and identifying the global energy minimum.
 
+
+---
+
+## Ephemeris Cache & Replay Manifest Architecture
+
+To support high-performance computations and rigorous scientific reproducibility, ASTRA incorporates an epoch-quantized ephemeris cache and deterministic replay manifest system.
+
+### 1. Ephemeris Cache (`astra.data.cache`)
+ASTRA's Bayesian optimization and porkchop grid calculations involve tens of thousands of coordinate and velocity lookups. Querying SPICE directly for every state lookup is computationally expensive.
+* **Epoch-Quantized LRU Cache**: Employs an in-memory `OrderedDict`-based Least Recently Used (LRU) cache (`EphemerisCache`) to store planet state vectors (`position` and `velocity`) for a given target, observer, and frame.
+* **Quantization Guard**: Epochs (J2000 seconds) are quantized to a configurable grid (default: 60-second resolution via `DEFAULT_QUANTIZATION_SECONDS`) to collapse close, numerically equivalent epochs into single cache entries without affecting physics accuracy.
+* **Disk Persistence**: Supports local state preservation. The cache can be loaded from or serialized to a JSON file (`persist_path`) for cross-run reuse:
+  ```python
+  from pathlib import Path
+  from astra.data.cache import EphemerisCache
+  from astra.physics import PhysicsKernel
+
+  # Initialize PhysicsKernel with a persistent disk cache
+  cache = EphemerisCache(max_entries=50_000, persist_path=Path("data/cache.json"))
+  kernel = PhysicsKernel(cache=cache)
+  ```
+* **Performance Reporting**: The cache tracks hits, misses, and evictions dynamically. You can inspect hit-rate statistics at any time:
+  ```python
+  stats = cache.stats.to_dict()
+  print(f"Cache Hit Rate: {stats['hit_rate_pct']}% (Hits: {stats['hits']}, Misses: {stats['misses']})")
+  ```
+
+### 2. Deterministic Replay & Reproducibility (`astra.data.replay`)
+ASTRA provides a robust scientific reproducibility workflow using JSON-based replay manifests.
+* **Metadata Capture**: A `ReplayManifest` captures the exact system configurations, software versions (`astra`, `python`), SPICE kernel SHA-256 checksums, DSL mission YAML specification text, random seed, and optimization search budget.
+* **Determinism**: Allows exact reproduction of optimization traces and Pareto frontiers.
+
+### 3. Replay CLI Workflow
+You can save and replay optimization runs directly from the command line:
+
+* **Save a Manifest after Optimization**:
+  ```powershell
+  uv run astra optimize data/benchmarks/earth_mars_2031.yaml \
+      --trials 500 --time-limit 60 --save-manifest data/benchmarks/test_manifest.json
+  ```
+
+* **Deterministic Replay from a Manifest**:
+  ```powershell
+  uv run astra optimize --replay data/benchmarks/test_manifest.json
+  ```

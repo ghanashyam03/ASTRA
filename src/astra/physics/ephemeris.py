@@ -3,12 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import spiceypy as spice
 
 from astra.physics.exceptions import InvalidEphemerisError
 from astra.state.orbital_state import CelestialBody, OrbitalState, ReferenceFrame
+
+if TYPE_CHECKING:
+    from astra.data.cache import EphemerisCache
 
 # J2000 epoch offset: 2000-01-01 12:00:00 TDB in seconds from J2000.0
 J2000_EPOCH = 0.0
@@ -90,9 +94,10 @@ class EphemerisEngine:
         CelestialBody.PLUTO: "PLUTO BARYCENTER",
     }
 
-    def __init__(self, kernel_dir: Path) -> None:
+    def __init__(self, kernel_dir: Path, cache: EphemerisCache | None = None) -> None:
         self.kernel_dir = kernel_dir
         self._loaded = False
+        self.cache = cache
 
     def load_kernels(self) -> None:
         """Load LSK, PCK, and SPK kernels from kernel_dir."""
@@ -149,6 +154,26 @@ class EphemerisEngine:
         target_name = self._resolve_spice_name(target)
         observer_name = self._resolve_observer_name(observer)
         
+        if self.cache is not None:
+            cached = self.cache.get(target_name, epoch_j2000, frame, observer_name)
+            if cached is not None:
+                pos, vel = cached
+                if central_body is None:
+                    resolved_cb = resolve_central_body(observer)
+                else:
+                    resolved_cb = central_body
+                try:
+                    ref_frame = ReferenceFrame(frame.upper().strip())
+                except ValueError:
+                    ref_frame = ReferenceFrame.ECLIPJ2000
+                return OrbitalState(
+                    epoch=epoch_j2000,
+                    position=pos,
+                    velocity=vel,
+                    frame=ref_frame,
+                    central_body=resolved_cb,
+                )
+
         try:
             state, _ = spice.spkezr(target_name, epoch_j2000, frame, "NONE", observer_name)
         except Exception as e:
@@ -168,6 +193,9 @@ class EphemerisEngine:
         
         assert pos.dtype == np.float64, "position must be np.float64"
         assert vel.dtype == np.float64, "velocity must be np.float64"
+
+        if self.cache is not None:
+            self.cache.put(target_name, epoch_j2000, frame, observer_name, pos, vel)
 
         try:
             ref_frame = ReferenceFrame(frame.upper().strip())
