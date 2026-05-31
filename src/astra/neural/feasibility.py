@@ -97,7 +97,7 @@ class FeasibilityClassifier:
             return True
             
         _, _, pred = self.forward(feat.reshape(1, -1))
-        return bool(pred[0, 0] >= 0.3)
+        return bool(pred[0, 0] >= 0.15)
 
     def update(self, feat: np.ndarray, val: float) -> None:
         """Online single-step update based on physical simulator feedback."""

@@ -135,6 +135,8 @@ def test_neural_accelerated_matches_standard() -> None:
     # Both must converge
     assert r_standard.converged
     assert r_neural.converged
+    assert r_standard.best_trajectory is not None
+    assert r_neural.best_trajectory is not None
 
     # Neural result must be within 10% of standard (same quality range)
     dv_std = r_standard.best_trajectory.delta_v_total
