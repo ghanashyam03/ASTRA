@@ -7,19 +7,20 @@ SPICE = (Path("data/spice_kernels") / "de440.bsp").exists()
 
 
 @pytest.mark.skipif(not SPICE, reason="SPICE kernels required")
-def test_cache_speedup_in_porkchop():
+def test_cache_speedup_in_porkchop() -> None:
     """Cached porkchop must be ≥ 5× faster than uncached."""
-    from astra.data.cache import EphemerisCache
+
+    import spiceypy as spice
+
     from astra.dsl.compiler import compile_mission
     from astra.dsl.parser import parse_mission_file
     from astra.optimization.engine import compute_porkchop
     from astra.physics.kernel import PhysicsKernel
-    import spiceypy as spice
-
-    # Simulate realistic C-level SPICE search & frame conversion overhead
-    # (0.5 ms per call) for uncached/uncachable calls.
     orig_spkezr = spice.spkezr
-    spice.spkezr = lambda *a, **kw: (time.sleep(0.0005) or orig_spkezr(*a, **kw))
+    def mock_spkezr(*a: object, **kw: object) -> object:
+        time.sleep(0.0005)
+        return orig_spkezr(*a, **kw)
+    spice.spkezr = mock_spkezr
 
     try:
         # Without cache
@@ -51,7 +52,7 @@ def test_cache_speedup_in_porkchop():
 
 
 @pytest.mark.skipif(not SPICE, reason="SPICE kernels required")
-def test_cache_hit_rate_in_optimization():
+def test_cache_hit_rate_in_optimization() -> None:
     """Cache hit rate must exceed 80% during a 200-trial optimization."""
     from astra.data.cache import EphemerisCache
     from astra.dsl.compiler import compile_mission

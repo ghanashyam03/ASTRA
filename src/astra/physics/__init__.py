@@ -18,7 +18,13 @@ from astra.physics.exceptions import (
     PropagationError,
 )
 from astra.physics.kernel import PhysicsKernel
-from astra.physics.lambert import lambert_izzo
+from astra.physics.lambert import (
+    LambertSolution,
+    find_best_transfer,
+    lambert_izzo,
+    lambert_izzo_multirev,
+    lambert_min_tof_multirev,
+)
 from astra.physics.propagator import (
     IntegrationResult,
     Integrator,
@@ -34,6 +40,10 @@ __all__ = [
     "TargetType",
     "resolve_central_body",
     "lambert_izzo",
+    "lambert_izzo_multirev",
+    "lambert_min_tof_multirev",
+    "find_best_transfer",
+    "LambertSolution",
     "propagate_two_body",
     "propagate_to_times",
     "Integrator",

@@ -1,7 +1,9 @@
+from pathlib import Path
+
 from astra.data.cache import EphemerisCache, _quantize_epoch
 
 
-def test_epoch_quantization():
+def test_epoch_quantization() -> None:
     q = 60.0
     assert _quantize_epoch(0.0, q) == 0.0
     assert _quantize_epoch(30.0, q) == 0.0
@@ -10,7 +12,7 @@ def test_epoch_quantization():
     assert _quantize_epoch(90.1, q) == 120.0
 
 
-def test_cache_miss_then_hit():
+def test_cache_miss_then_hit() -> None:
     import numpy as np
     cache = EphemerisCache(max_entries=100)
     assert cache.get("EARTH", 0.0, "ECLIPJ2000", "SUN") is None
@@ -25,7 +27,7 @@ def test_cache_miss_then_hit():
     assert cache.stats.hit_rate == 0.5
 
 
-def test_cache_lru_eviction():
+def test_cache_lru_eviction() -> None:
     import numpy as np
     cache = EphemerisCache(max_entries=3)
     dummy = np.zeros(3)
@@ -36,7 +38,7 @@ def test_cache_lru_eviction():
     assert cache.get("BODY", 0.0, "ECLIPJ2000", "SUN") is None  # evicted
 
 
-def test_cache_epoch_quantization_collapses_nearby_epochs():
+def test_cache_epoch_quantization_collapses_nearby_epochs() -> None:
     import numpy as np
     cache = EphemerisCache(max_entries=100)
     pos = np.array([1.0, 2.0, 3.0])
@@ -47,7 +49,7 @@ def test_cache_epoch_quantization_collapses_nearby_epochs():
     assert result is not None, "Nearby epoch should hit quantized cache entry"
 
 
-def test_cache_persist_roundtrip(tmp_path):
+def test_cache_persist_roundtrip(tmp_path: Path) -> None:
     import numpy as np
     path = tmp_path / "cache.json"
     cache1 = EphemerisCache(max_entries=100, persist_path=path)
@@ -61,7 +63,7 @@ def test_cache_persist_roundtrip(tmp_path):
     np.testing.assert_allclose(result[0], pos, rtol=1e-12)
 
 
-def test_replay_manifest_roundtrip(tmp_path):
+def test_replay_manifest_roundtrip(tmp_path: Path) -> None:
     from astra.data.replay import ReplayManifest
     m = ReplayManifest(
         mission_id="test_mission",
