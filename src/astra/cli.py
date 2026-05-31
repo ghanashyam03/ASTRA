@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("astra.cli")
 
 def cmd_optimize(args: argparse.Namespace) -> int:
+    from astra.data.replay import ReplayManifest
     from astra.dsl.compiler import compile_mission
     from astra.dsl.parser import parse_mission_file, parse_mission_string
     from astra.explainability.engine import explain
@@ -19,7 +20,6 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         optimize_mission_neural_accelerated,
     )
     from astra.physics.kernel import PhysicsKernel
-    from astra.data.replay import ReplayManifest
 
     kernel = PhysicsKernel(args.kernels).load()
 
@@ -28,7 +28,10 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         logger.info(f"Replaying optimization from manifest: {args.replay}")
         manifest = ReplayManifest.load(Path(args.replay))
         if not manifest.verify_kernels(Path(args.kernels)):
-            logger.warning("SPICE kernel verification failed (checksum mismatch or missing). Continuing anyway.")
+            logger.warning(
+                "SPICE kernel verification failed (checksum mismatch or missing). "
+                "Continuing anyway."
+            )
         dsl = parse_mission_string(manifest.mission_yaml, "yaml")
         mission = compile_mission(dsl, kernel.ephemeris)
         # Override parameters from the manifest for deterministic replay
@@ -37,7 +40,9 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         time_limit = manifest.time_limit_seconds
     else:
         if not args.mission:
-            logger.error("Error: Path to mission YAML file is required unless --replay is specified.")
+            logger.error(
+                "Error: Path to mission YAML file is required unless --replay is specified."
+            )
             return 1
         logger.info(f"Loading mission: {args.mission}")
         dsl = parse_mission_file(args.mission)
@@ -94,7 +99,11 @@ def cmd_optimize(args: argparse.Namespace) -> int:
 
     if args.save_manifest:
         from astra.data.replay import build_manifest
-        yaml_text = Path(args.mission).read_text(encoding="utf-8") if args.mission else manifest.mission_yaml
+        if args.mission:
+            yaml_text = Path(args.mission).read_text(encoding="utf-8")
+        else:
+            assert manifest is not None
+            yaml_text = manifest.mission_yaml
         manifest_to_save = build_manifest(
             mission_yaml=yaml_text,
             mission_id=mission.mission_id,
