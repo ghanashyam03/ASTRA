@@ -6,6 +6,7 @@ from astra.optimization.engine import (
     compute_porkchop,
     evaluate_transfer,
     optimize_mission_bayesian,
+    optimize_mission_neural_accelerated,
 )
 from astra.optimization.search_space import SearchSpace
 
@@ -15,4 +16,5 @@ __all__ = [
     "evaluate_transfer",
     "compute_porkchop",
     "optimize_mission_bayesian",
+    "optimize_mission_neural_accelerated",
 ]
