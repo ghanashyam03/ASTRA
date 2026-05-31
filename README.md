@@ -175,7 +175,6 @@ ASTRA exposes a standard, high-performance FastAPI web application layer to quer
     *   **Crucial Limitation**: The active optimization job state is held strictly in an in-memory dictionary. Active/historical job records and status logs **do not persist** across server restarts.
 
 ### API Limitations
-*   **Single-rev Transfers Only**: The under-the-hood Lambert solvers and patched-conics propagators are limited to single-revolution two-body orbital transfers.
 *   **Single-Worker/Thread Handoff**: The global, in-memory SPICE physics kernel loads dynamically at startup and behaves as a singleton worker resource.
 *   **Degraded Mode Support**: If local SPICE ephemeris files are missing during server startup, ASTRA boots gracefully into a degraded mode. Under degraded mode, standard health checks pass, but precise body state lookups and optimization requests will return 503 Service Unavailable or 400 Bad Request error codes.
 
@@ -193,3 +192,71 @@ ASTRA exposes a standard, high-performance FastAPI web application layer to quer
 *   **3D Trajectory Rendering Data**: Integrates astronomical-unit scaling to serialize spacecraft coordinates, maneuver epoch vectors, and planetary tracks into beautiful, browser-ready structures (`build_render_data()`).
 *   **Plotly-Ready Porkchops**: Converts raw grid arrays into serialized Plotly-ready contour maps (`build_porkchop_plot()`), replacing NaN values with JSON-serializable `None` values and identifying the global energy minimum.
 
+
+---
+
+## Ephemeris Cache & Replay Manifest Architecture
+
+To support high-performance computations and rigorous scientific reproducibility, ASTRA incorporates an epoch-quantized ephemeris cache and deterministic replay manifest system.
+
+### 1. Ephemeris Cache (`astra.data.cache`)
+ASTRA's Bayesian optimization and porkchop grid calculations involve tens of thousands of coordinate and velocity lookups. Querying SPICE directly for every state lookup is computationally expensive.
+* **Epoch-Quantized LRU Cache**: Employs an in-memory `OrderedDict`-based Least Recently Used (LRU) cache (`EphemerisCache`) to store planet state vectors (`position` and `velocity`) for a given target, observer, and frame.
+* **Quantization Guard**: Epochs (J2000 seconds) are quantized to a configurable grid (default: 60-second resolution via `DEFAULT_QUANTIZATION_SECONDS`) to collapse close, numerically equivalent epochs into single cache entries without affecting physics accuracy.
+* **Disk Persistence**: Supports local state preservation. The cache can be loaded from or serialized to a JSON file (`persist_path`) for cross-run reuse:
+  ```python
+  from pathlib import Path
+  from astra.data.cache import EphemerisCache
+  from astra.physics import PhysicsKernel
+
+  # Initialize PhysicsKernel with a persistent disk cache
+  cache = EphemerisCache(max_entries=50_000, persist_path=Path("data/cache.json"))
+  kernel = PhysicsKernel(cache=cache)
+  ```
+* **Performance Reporting**: The cache tracks hits, misses, and evictions dynamically. You can inspect hit-rate statistics at any time:
+  ```python
+  stats = cache.stats.to_dict()
+  print(f"Cache Hit Rate: {stats['hit_rate_pct']}% (Hits: {stats['hits']}, Misses: {stats['misses']})")
+  ```
+
+### 2. Deterministic Replay & Reproducibility (`astra.data.replay`)
+ASTRA provides a robust scientific reproducibility workflow using JSON-based replay manifests.
+* **Metadata Capture**: A `ReplayManifest` captures the exact system configurations, software versions (`astra`, `python`), SPICE kernel SHA-256 checksums, DSL mission YAML specification text, random seed, and optimization search budget.
+* **Determinism**: Allows exact reproduction of optimization traces and Pareto frontiers.
+
+### 3. Replay CLI Workflow
+You can save and replay optimization runs directly from the command line:
+
+* **Save a Manifest after Optimization**:
+  ```powershell
+  uv run astra optimize data/benchmarks/earth_mars_2031.yaml \
+      --trials 500 --time-limit 60 --save-manifest data/benchmarks/test_manifest.json
+  ```
+
+* **Deterministic Replay from a Manifest**:
+  ```powershell
+  uv run astra optimize --replay data/benchmarks/test_manifest.json
+  ```
+
+---
+
+## Multi-Revolution Lambert Support (`astra.physics`)
+
+To support long-duration interplanetary missions, ASTRA incorporates complete multi-revolution Lambert targeting using Dario Izzo's universal variable method. This enables the calculation of transfer conics where the spacecraft makes $n \ge 1$ complete revolutions around the central body before arriving at its destination.
+
+### 1. The Physics & Branch Definition
+For any target transfer duration longer than the minimum possible multi-revolution time ($T > T_{min}(n)$), there exist exactly **two solutions** per revolution count $n \ge 1$:
+*   **Low $\Delta v$ Branch (Lowpath)**: Corresponds to $x > x_{min}$ (larger universal variable $x$, closer to $1.0$). This represents orbits with smaller eccentricities, smaller energy deviations, and generally lower fuel costs.
+*   **High $\Delta v$ Branch (Highpath)**: Corresponds to $x < x_{min}$ (smaller universal variable $x$, closer to $-1.0$). This represents highly eccentric orbits with focus above the chord, usually resulting in significantly higher fuel consumption.
+
+### 2. Turning Point & Singularity Safeguards
+Multi-revolution orbits are physically bounded by a minimum time of flight, below which no mathematical solution exists.
+*   **Halley Turning Point Finder**: ASTRA resolves the turning point $x_{min}$ where $dT/dx = 0$ using a high-precision third-order Halley iterative search starting from a robust initial guess of $x_0 = -0.5$.
+*   **Boundary Enforcement**: If the non-dimensional target time of flight $T$ is less than $T_{min}(n)$, the solver explicitly rejects the invalid solution space by throwing a `LambertSingularityError`.
+*   **Convergence Safeguard**: During Householder root-finding iterations, a dampening guard prevents steps from crossing the $x_{min}$ turning point boundary. If a step would cross $x_{min}$, the algorithm dampens it to move only 90% of the way to the boundary, ensuring robust convergence to the correct branch.
+
+### 3. Validation Methodology
+Every multi-revolution capability is validated against rigorous manual and automated test criteria:
+*   **Backwards Compatibility ($n=0$)**: $n=0$ (single-rev) runs through the identical validated baseline universal variables route and matches `lambert_izzo` bit-for-bit.
+*   **Conic Propagation Verification**: Transfer orbits solved by `lambert_izzo_multirev` are numerically propagated over the target time of flight using double-precision two-body integration. The spacecraft must arrive back at the destination position within a strictly enforced tolerance of **< 500 km**.
+*   **Reference Benchmarks**: Demonstrated on Earth-Mars transfer windows where long-duration launch opportunities successfully locate cheaper $1$-rev and $2$-rev conics (e.g. dropping Earth-Mars $\Delta v$ from $44.4$ km/s down to $14.29$ km/s over an 800-day window).

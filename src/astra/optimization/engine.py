@@ -12,7 +12,7 @@ import optuna
 from astra.dsl.compiler import CompiledMission
 from astra.dsl.schema import ConstraintType
 from astra.physics.kernel import PhysicsKernel
-from astra.physics.lambert import lambert_izzo
+from astra.physics.lambert import find_best_transfer
 from astra.state.orbital_state import GM, CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
 
@@ -49,6 +49,8 @@ def evaluate_transfer(
     departure_epoch: float,
     tof_seconds: float,
     mu_sun: float,
+    use_multirev: bool = True,
+    max_revs: int = 2,
 ) -> Trajectory | None:
     """Compute a patched-conics interplanetary transfer.
 
@@ -58,11 +60,20 @@ def evaluate_transfer(
         return None
 
     try:
-        v_dep, v_arr, converged = lambert_izzo(r1, r2, tof_seconds, mu_sun)
+        sol = find_best_transfer(
+            r1=r1,
+            v1_body=v1_body,
+            r2=r2,
+            v2_body=v2_body,
+            tof=tof_seconds,
+            mu=mu_sun,
+            max_revs=max_revs if use_multirev else 0,
+        )
+        v_dep = sol.v1
+        v_arr = sol.v2
+        n_revs = sol.n_revs
+        branch = sol.branch
     except Exception:
-        return None
-
-    if not converged:
         return None
 
     # Departure delta-v: difference from body velocity
@@ -92,6 +103,8 @@ def evaluate_transfer(
             "tof_days": tof_seconds / 86400.0,
             "dv1_km_s": float(np.linalg.norm(dv1)),
             "dv2_km_s": float(np.linalg.norm(dv2)),
+            "n_revolutions": n_revs,
+            "transfer_branch": branch,
         },
     )
 
@@ -264,6 +277,10 @@ def optimize_mission_neural_accelerated(
     mu_sun = GM["SUN"]
     max_dv, max_days = _get_hard_limits(mission)
 
+    # Seed global numpy random state for neural network weight initialization
+    # and data shuffling determinism
+    np.random.seed(seed)
+
     # Phase 1: generate training data
     logger.info(f"Generating {pretrain_samples} samples for neural pretraining...")
     X, dv_y, feas_y = generate_transfer_dataset(
@@ -284,7 +301,6 @@ def optimize_mission_neural_accelerated(
     logger.info("Feasibility classifier trained.")
 
     # Phase 3: Bayesian optimization with neural filter
-    import numpy as np
     import optuna
     all_trajs: list[Trajectory] = []
     n_skipped = 0

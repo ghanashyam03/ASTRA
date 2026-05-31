@@ -4,6 +4,7 @@ Coordinates orbital propagation, ephemeris queries, and Lambert boundary value s
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -12,13 +13,25 @@ from astra.physics.lambert import lambert_izzo
 from astra.physics.propagator import Integrator, propagate_two_body
 from astra.state.orbital_state import CelestialBody, OrbitalState
 
+if TYPE_CHECKING:
+    from astra.data.cache import EphemerisCache
 
 class PhysicsKernel:
     """Unified physics interface. Owns the ephemeris engine and
     provides all trajectory computation primitives."""
 
-    def __init__(self, kernel_dir: Path | str = "data/spice_kernels") -> None:
-        self.ephemeris = EphemerisEngine(Path(kernel_dir))
+    def __init__(
+        self,
+        kernel_dir: Path | str = "data/spice_kernels",
+        cache: EphemerisCache | None = None,
+    ) -> None:
+        from astra.data.cache import EphemerisCache as _Cache
+        if cache is None:
+            cache = _Cache(max_entries=50_000)
+        self.ephemeris = EphemerisEngine(
+            Path(kernel_dir),
+            cache=cache,
+        )
         self._kernels_loaded = False
 
     def load(self) -> PhysicsKernel:
