@@ -25,12 +25,25 @@ from astra.physics.lambert import (
     lambert_izzo_multirev,
     lambert_min_tof_multirev,
 )
+from astra.physics.maneuvers import (
+    arrival_delta_v,
+    c3_from_vinf,
+    departure_delta_v,
+    hyperbolic_excess_speed,
+)
 from astra.physics.propagator import (
     IntegrationResult,
     Integrator,
     RK45Integrator,
     propagate_to_times,
     propagate_two_body,
+)
+from astra.physics.soi import (
+    DEFAULT_PARKING_ALTITUDE_KM,
+    SOIResult,
+    compute_soi_radius,
+    get_default_parking_altitude,
+    is_in_soi,
 )
 
 __all__ = [
@@ -55,4 +68,13 @@ __all__ = [
     "LambertSingularityError",
     "PropagationError",
     "InvalidEphemerisError",
+    "departure_delta_v",
+    "arrival_delta_v",
+    "c3_from_vinf",
+    "hyperbolic_excess_speed",
+    "compute_soi_radius",
+    "is_in_soi",
+    "get_default_parking_altitude",
+    "DEFAULT_PARKING_ALTITUDE_KM",
+    "SOIResult",
 ]
