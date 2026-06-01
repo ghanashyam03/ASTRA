@@ -260,3 +260,49 @@ Every multi-revolution capability is validated against rigorous manual and autom
 *   **Backwards Compatibility ($n=0$)**: $n=0$ (single-rev) runs through the identical validated baseline universal variables route and matches `lambert_izzo` bit-for-bit.
 *   **Conic Propagation Verification**: Transfer orbits solved by `lambert_izzo_multirev` are numerically propagated over the target time of flight using double-precision two-body integration. The spacecraft must arrive back at the destination position within a strictly enforced tolerance of **< 500 km**.
 *   **Reference Benchmarks**: Demonstrated on Earth-Mars transfer windows where long-duration launch opportunities successfully locate cheaper $1$-rev and $2$-rev conics (e.g. dropping Earth-Mars $\Delta v$ from $44.4$ km/s down to $14.29$ km/s over an 800-day window).
+
+---
+
+## Heliocentric Δv vs Mission Δv
+
+ASTRA differentiates between **Heliocentric $\Delta v$** (which represents the deep-space velocity changes relative to the Sun) and **Mission $\Delta v$** (which incorporates planetary gravity wells via sphere-of-influence patching for realistic launch vehicle injection and orbital insertion).
+
+### 1. Mathematical Formulations
+
+*   **Heliocentric $\Delta v$**:
+    Assumes maneuvers are performed in deep space far from planetary gravity wells.
+    $$\Delta v_{\text{helio}} = \| \mathbf{v}_{\text{sc,dep}} - \mathbf{v}_{\text{body,dep}} \| + \| \mathbf{v}_{\text{body,arr}} - \mathbf{v}_{\text{sc,arr}} \| = v_{\infty,\text{dep}} + v_{\infty,\text{arr}}$$
+    where $v_{\infty}$ is the hyperbolic excess speed at departure/arrival.
+
+*   **Patched-Conics (Sphere of Influence) $\Delta v$**:
+    Computes precise orbital maneuvers within the planetary gravity wells (Laplace SOI) using circular parking/capture orbits:
+    *   **Departure Burn (Trans-Mars Injection, TMI)**: Accelerates from a circular parking orbit at altitude $h_{\text{park}}$:
+        $$v_{\text{park}} = \sqrt{\frac{\mu_{\text{origin}}}{R_{\text{origin}} + h_{\text{park}}}}$$
+        $$v_{\text{hyp,dep}} = \sqrt{v_{\infty,\text{dep}}^2 + \frac{2\mu_{\text{origin}}}{R_{\text{origin}} + h_{\text{park}}}}$$
+        $$\Delta v_{\text{TMI}} = v_{\text{hyp,dep}} - v_{\text{park}}$$
+    *   **Arrival Burn (Mars Orbit Insertion, MOI)**: Decelerates from a hyperbolic approach to a circular capture orbit at altitude $h_{\text{capture}}$:
+        $$v_{\text{cap}} = \sqrt{\frac{\mu_{\text{dest}}}{R_{\text{dest}} + h_{\text{capture}}}}$$
+        $$v_{\text{hyp,arr}} = \sqrt{v_{\infty,\text{arr}}^2 + \frac{2\mu_{\text{dest}}}{R_{\text{dest}} + h_{\text{capture}}}}$$
+        $$\Delta v_{\text{MOI}} = v_{\text{hyp,arr}} - v_{\text{cap}}$$
+    *   **Total Mission $\Delta v$**:
+        $$\Delta v_{\text{total}} = \Delta v_{\text{TMI}} + \Delta v_{\text{MOI}}$$
+
+### 2. The Oberth Effect & Mission Design Implications
+
+The planetary gravity well provides a significant speed boost near the body's periapsis. Because mechanical energy change is proportional to speed ($\Delta E_k \approx v \Delta v$), performing burns deep within a gravity well (at high speed) yields a vastly larger orbital energy change than in deep heliocentric space.
+
+As a result:
+*   **High-Energy Transits**: The SOI-patched $\Delta v$ can be numerically **smaller** than the heliocentric $v_{\infty}$ sum. The Oberth effect at Earth and Mars dramatically reduces the propellant required to escape and capture.
+*   **Hohmann Geometry**: For very low-energy transfers, the escape/capture gravity well overhead is positive, typically adding between $0.1$ and $2.0$ km/s depending on the target parking orbit altitudes.
+
+### 3. Empirical Reference: Earth-Mars 2031 Transfer
+
+Below is a comparative breakdown of the optimal 280-day Earth-Mars transfer from our benchmark suite:
+
+| Parameter | Heliocentric Formulation | Patched-Conics (SOI) Formulation |
+| :--- | :--- | :--- |
+| **Departure Burn (TMI)** | $3.2372$ km/s (as $v_{\infty}$) | **$3.6904$ km/s** (from $200$ km LEO) |
+| **Arrival Burn (MOI)** | $3.5471$ km/s (as $v_{\infty}$) | **$2.5761$ km/s** (to $300$ km Mars orbit) |
+| **Total $\Delta v$** | $6.7843$ km/s | **$6.2665$ km/s** |
+| **Departure $C_3$** | $10.4794$ $\text{km}^2/\text{s}^2$ | $10.4794$ $\text{km}^2/\text{s}^2$ |
+
