@@ -41,6 +41,8 @@ class CompiledMission:
     objectives: list[CompiledObjective]
     seed: int
     max_evaluations: int
+    parking_altitude_km: float = 200.0
+    capture_altitude_km: float = 300.0
 
 def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -> CompiledMission:
     """Compile MissionDSL → CompiledMission domain object.
@@ -95,6 +97,21 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
         ) for o in dsl.objectives
     ]
 
+    from astra.physics.soi import get_default_parking_altitude
+    h_park = get_default_parking_altitude(dsl.trajectory.origin.body)
+    if dsl.trajectory.origin.orbit is not None:
+        if dsl.trajectory.origin.orbit.altitude_km is not None:
+            h_park = dsl.trajectory.origin.orbit.altitude_km
+        elif dsl.trajectory.origin.orbit.periapsis_km is not None:
+            h_park = dsl.trajectory.origin.orbit.periapsis_km
+
+    h_cap = get_default_parking_altitude(dsl.trajectory.destination.body)
+    if dsl.trajectory.destination.orbit is not None:
+        if dsl.trajectory.destination.orbit.altitude_km is not None:
+            h_cap = dsl.trajectory.destination.orbit.altitude_km
+        elif dsl.trajectory.destination.orbit.periapsis_km is not None:
+            h_cap = dsl.trajectory.destination.orbit.periapsis_km
+
     day = 86400.0
     return CompiledMission(
         mission_id=dsl.mission_id,
@@ -110,4 +127,6 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
         objectives=objectives,
         seed=dsl.optimization.seed,
         max_evaluations=dsl.optimization.budget.max_evaluations,
+        parking_altitude_km=h_park,
+        capture_altitude_km=h_cap,
     )
