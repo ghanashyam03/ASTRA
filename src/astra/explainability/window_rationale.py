@@ -78,7 +78,11 @@ def build_window_rationale(
     else:
         v_sc_dep = origin_state.velocity
 
-    c3 = compute_c3(v_sc_dep, origin_state.velocity)
+    c3 = None
+    if trajectory.metadata and "c3_km2_s2" in trajectory.metadata:
+        c3 = trajectory.metadata["c3_km2_s2"]
+    else:
+        c3 = compute_c3(v_sc_dep, origin_state.velocity)
     synodic = compute_synodic_period(origin, destination)
 
     # Phase angle between origin and destination at departure

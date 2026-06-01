@@ -51,6 +51,11 @@ def evaluate_transfer(
     mu_sun: float,
     use_multirev: bool = True,
     max_revs: int = 2,
+    origin_body: str = "EARTH",
+    destination_body: str = "MARS",
+    parking_altitude_km: float = 200.0,
+    capture_altitude_km: float = 300.0,
+    use_soi_patching: bool = True,
 ) -> Trajectory | None:
     """Compute a patched-conics interplanetary transfer.
 
@@ -76,9 +81,20 @@ def evaluate_transfer(
     except Exception:
         return None
 
-    # Departure delta-v: difference from body velocity
-    dv1 = v_dep - v1_body
-    dv2 = v2_body - v_arr
+    # Excess velocities
+    v_inf_dep = v_dep - v1_body
+    v_inf_arr = v2_body - v_arr
+
+    if use_soi_patching:
+        from astra.physics.maneuvers import arrival_delta_v, departure_delta_v
+        dv1_mag = departure_delta_v(v_inf_dep, parking_altitude_km, origin_body)
+        dv2_mag = arrival_delta_v(v_inf_arr, capture_altitude_km, destination_body)
+        # Reconstruct Δv vectors in same direction scaled to SOI magnitudes
+        dv1 = (v_inf_dep / max(float(np.linalg.norm(v_inf_dep)), 1e-10)) * dv1_mag
+        dv2 = (v_inf_arr / max(float(np.linalg.norm(v_inf_arr)), 1e-10)) * dv2_mag
+    else:
+        dv1 = v_inf_dep
+        dv2 = v_inf_arr
 
     s0 = OrbitalState(
         epoch=departure_epoch,
@@ -105,6 +121,11 @@ def evaluate_transfer(
             "dv2_km_s": float(np.linalg.norm(dv2)),
             "n_revolutions": n_revs,
             "transfer_branch": branch,
+            "v_inf_dep_km_s": float(np.linalg.norm(v_inf_dep)),
+            "v_inf_arr_km_s": float(np.linalg.norm(v_inf_arr)),
+            "c3_km2_s2": float(np.dot(v_inf_dep, v_inf_dep)),
+            "parking_altitude_km": parking_altitude_km,
+            "capture_altitude_km": capture_altitude_km,
         },
     )
 
@@ -144,7 +165,14 @@ def compute_porkchop(
                 v2 = kernel.get_body_state(mission.destination_body, arr).velocity
             except Exception:
                 continue
-            traj = evaluate_transfer(r1, v1, r2, v2, dep, tof, mu_sun)
+            traj = evaluate_transfer(
+                r1, v1, r2, v2, dep, tof, mu_sun,
+                origin_body=mission.origin_body.name,
+                destination_body=mission.destination_body.name,
+                parking_altitude_km=mission.parking_altitude_km,
+                capture_altitude_km=mission.capture_altitude_km,
+                use_soi_patching=True,
+            )
             if traj is not None:
                 dv_grid[i, j] = traj.delta_v_total
 
@@ -193,7 +221,14 @@ def optimize_mission_bayesian(
         except Exception:
             return 99.0, 999.0
 
-        traj = evaluate_transfer(r1, v1, r2, v2, dep, tof, mu_sun)
+        traj = evaluate_transfer(
+            r1, v1, r2, v2, dep, tof, mu_sun,
+            origin_body=mission.origin_body.name,
+            destination_body=mission.destination_body.name,
+            parking_altitude_km=mission.parking_altitude_km,
+            capture_altitude_km=mission.capture_altitude_km,
+            use_soi_patching=True,
+        )
         if traj is None:
             return 99.0, 999.0
 
@@ -232,7 +267,14 @@ def optimize_mission_bayesian(
                 v1 = kernel.get_body_state(mission.origin_body, dep).velocity
                 r2 = kernel.get_body_state(mission.destination_body, dep + tof).position
                 v2 = kernel.get_body_state(mission.destination_body, dep + tof).velocity
-                traj = evaluate_transfer(r1, v1, r2, v2, dep, tof, mu_sun)
+                traj = evaluate_transfer(
+                    r1, v1, r2, v2, dep, tof, mu_sun,
+                    origin_body=mission.origin_body.name,
+                    destination_body=mission.destination_body.name,
+                    parking_altitude_km=mission.parking_altitude_km,
+                    capture_altitude_km=mission.capture_altitude_km,
+                    use_soi_patching=True,
+                )
                 if traj and traj.is_feasible(max_dv, max_days):
                     pareto.append(traj)
             except Exception:
@@ -337,7 +379,14 @@ def optimize_mission_neural_accelerated(
         except Exception:
             return 99.0, 999.0
 
-        traj = evaluate_transfer(r1, v1, r2, v2, dep, tof, mu_sun)
+        traj = evaluate_transfer(
+            r1, v1, r2, v2, dep, tof, mu_sun,
+            origin_body=mission.origin_body.name,
+            destination_body=mission.destination_body.name,
+            parking_altitude_km=mission.parking_altitude_km,
+            capture_altitude_km=mission.capture_altitude_km,
+            use_soi_patching=True,
+        )
         if traj is None:
             # Online update: physics says infeasible
             clf.update(feat, 0.0)
@@ -371,7 +420,14 @@ def optimize_mission_neural_accelerated(
                 v1 = kernel.get_body_state(mission.origin_body, dep).velocity
                 r2 = kernel.get_body_state(mission.destination_body, dep + tof).position
                 v2 = kernel.get_body_state(mission.destination_body, dep + tof).velocity
-                traj = evaluate_transfer(r1, v1, r2, v2, dep, tof, mu_sun)
+                traj = evaluate_transfer(
+                    r1, v1, r2, v2, dep, tof, mu_sun,
+                    origin_body=mission.origin_body.name,
+                    destination_body=mission.destination_body.name,
+                    parking_altitude_km=mission.parking_altitude_km,
+                    capture_altitude_km=mission.capture_altitude_km,
+                    use_soi_patching=True,
+                )
                 if traj and traj.is_feasible(max_dv, max_days):
                     pareto.append(traj)
             except Exception:
