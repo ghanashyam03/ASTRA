@@ -1,16 +1,18 @@
-import numpy as np
-import pytest
+import builtins
 import math
 from typing import Any
 
-from astra.neural.surrogate import SurrogateOutput, SurrogateMetrics
+import numpy as np
+import pytest
+
+from astra.neural.feasibility import FeasibilityClassifier
 from astra.neural.features import (
+    AU,
+    build_geometric_features,
     compute_hohmann_tof,
     compute_vis_viva_speed,
-    build_geometric_features,
-    AU,
 )
-from astra.neural.feasibility import FeasibilityClassifier
+from astra.neural.surrogate import SurrogateMetrics, SurrogateOutput
 
 
 def test_hohmann_tof_and_vis_viva() -> None:
@@ -185,10 +187,9 @@ def test_feasibility_classifier_evaluate_with_u_statistic(monkeypatch: pytest.Mo
     
     # 2. Force U-statistic fallback code path by hiding scikit-learn
     # We mock sklearn.metrics to raise ImportError on import
-    import builtins
     original_import = builtins.__import__
     
-    def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
+    def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         if name == "sklearn.metrics" or name.startswith("sklearn"):
             raise ImportError("Mocked import error")
         return original_import(name, *args, **kwargs)
