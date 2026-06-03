@@ -51,13 +51,25 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         time_limit = float(args.time_limit)
 
     logger.info(f"Optimizing {mission.mission_id} with {trials} trials...")
-    if args.neural:
+    strategy = getattr(args, "strategy", "bayesian")
+    if getattr(args, "neural", False) and strategy == "bayesian":
+        strategy = "neural"
+
+    if strategy == "neural":
         result = optimize_mission_neural_accelerated(
             mission, kernel,
             n_trials=trials,
             time_limit=time_limit,
             seed=mission.seed,
             pretrain_samples=args.pretrain,
+        )
+    elif strategy == "hybrid":
+        from astra.optimization.engine import optimize_mission_hybrid
+        result = optimize_mission_hybrid(
+            mission, kernel,
+            n_trials_bayesian=trials,
+            time_limit=time_limit,
+            seed=mission.seed,
         )
     else:
         result = optimize_mission_bayesian(
@@ -66,6 +78,7 @@ def cmd_optimize(args: argparse.Namespace) -> int:
             time_limit=time_limit,
             seed=mission.seed,
         )
+
 
     if not result.converged or result.best_trajectory is None:
         logger.error("No feasible trajectory found.")
@@ -125,8 +138,10 @@ def main() -> None:
     opt.add_argument("mission", nargs="?", help="Path to mission YAML file")
     opt.add_argument("--trials", type=int, default=2000)
     opt.add_argument("--time-limit", type=int, default=120)
+    opt.add_argument("--strategy", choices=["bayesian", "neural", "hybrid"],
+                     default="bayesian", help="Optimization strategy to use")
     opt.add_argument("--neural", action="store_true",
-                     help="Use neural-accelerated optimization")
+                     help="Use neural-accelerated optimization (legacy)")
     opt.add_argument("--pretrain", type=int, default=500,
                      help="Samples for neural pretraining")
     opt.add_argument("--kernels", default="data/spice_kernels",
