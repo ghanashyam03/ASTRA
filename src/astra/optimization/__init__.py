@@ -9,6 +9,11 @@ from astra.optimization.engine import (
     optimize_mission_hybrid,
     optimize_mission_neural_accelerated,
 )
+from astra.optimization.mcts import (
+    MCTSNode,
+    MCTSPlanner,
+    PhaseState,
+)
 from astra.optimization.search_space import SearchSpace
 
 __all__ = [
@@ -19,5 +24,8 @@ __all__ = [
     "optimize_mission_bayesian",
     "optimize_mission_hybrid",
     "optimize_mission_neural_accelerated",
+    "PhaseState",
+    "MCTSNode",
+    "MCTSPlanner",
 ]
 
