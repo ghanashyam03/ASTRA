@@ -45,6 +45,12 @@ from astra.physics.soi import (
     get_default_parking_altitude,
     is_in_soi,
 )
+from astra.physics.flyby import (
+    compute_flyby,
+    compute_flyby_turn_angle,
+    FlybyResult,
+    SAFE_FLYBY_ALTITUDE_KM,
+)
 
 __all__ = [
     "PhysicsKernel",
@@ -77,4 +83,8 @@ __all__ = [
     "get_default_parking_altitude",
     "DEFAULT_PARKING_ALTITUDE_KM",
     "SOIResult",
+    "compute_flyby",
+    "compute_flyby_turn_angle",
+    "FlybyResult",
+    "SAFE_FLYBY_ALTITUDE_KM",
 ]
