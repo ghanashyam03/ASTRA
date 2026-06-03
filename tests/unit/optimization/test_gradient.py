@@ -1,5 +1,7 @@
 import numpy as np
+
 from astra.optimization.gradient import refine_trajectory_lbfgsb
+
 
 def test_refinement_improves_simple_quadratic() -> None:
     """L-BFGS-B must find minimum of x² + y² starting from (1, 1)."""
