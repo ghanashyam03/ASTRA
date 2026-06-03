@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from astra.explainability.window_rationale import compute_synodic_period
+from astra.neural.features import build_geometric_features
 from astra.optimization.engine import evaluate_transfer
 from astra.physics.kernel import PhysicsKernel
 from astra.state.orbital_state import GM, CelestialBody
@@ -32,27 +34,45 @@ def generate_transfer_dataset(
     
     mu_sun = GM["SUN"]
     
+    # Precompute synodic period in seconds
+    syn_days = compute_synodic_period(origin_body, destination_body)
+    synodic_period_s = syn_days * 86400.0 if syn_days != float("inf") else 0.0
+    
     for i in range(n_samples):
         dep = dep_epochs[i]
         tof = tof_seconds[i]
         
-        # Build features
-        X[i, 0] = float((dep - dep_start) / max(dep_end - dep_start, 1.0))
-        X[i, 1] = float((tof - tof_min) / max(tof_max - tof_min, 1.0))
-        # Placeholder planet positions (zeroed)
-        X[i, 2:] = 0.0
-        
         try:
-            r1 = kernel.get_body_state(origin_body, dep).position
-            v1 = kernel.get_body_state(origin_body, dep).velocity
+            r1_state = kernel.get_body_state(origin_body, dep)
+            r1 = r1_state.position
+            v1 = r1_state.velocity
             arr = dep + tof
-            r2 = kernel.get_body_state(destination_body, arr).position
-            v2 = kernel.get_body_state(destination_body, arr).velocity
+            r2_state = kernel.get_body_state(destination_body, arr)
+            r2 = r2_state.position
+            v2 = r2_state.velocity
             
-            traj = evaluate_transfer(r1, v1, r2, v2, dep, tof, mu_sun)
+            # Build geometric features instead of empty placeholders
+            X[i] = build_geometric_features(
+                dep_epoch=dep,
+                tof_seconds=tof,
+                r1_km=r1,
+                v1_km_s=v1,
+                r2_km=r2,
+                dep_epoch_min=dep_start,
+                dep_epoch_max=dep_end,
+                tof_min=tof_min,
+                tof_max=tof_max,
+                synodic_period_s=synodic_period_s,
+            )
+            
+            traj = evaluate_transfer(
+                r1, v1, r2, v2, dep, tof, mu_sun,
+                origin_body=origin_body.value,
+                destination_body=destination_body.value,
+            )
             if traj is not None:
                 dv_y[i] = float(traj.delta_v_total)
-                feas_y[i] = 1.0 if traj.delta_v_total < 30.0 else 0.0
+                feas_y[i] = 1.0 if traj.delta_v_total < 15.0 else 0.0
             else:
                 dv_y[i] = 99.0
                 feas_y[i] = 0.0
