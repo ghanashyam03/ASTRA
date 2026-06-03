@@ -29,9 +29,14 @@ class OptimizationResult:
     wall_time_s: float = 0.0
     converged: bool = False
     error: str | None = None
+    phase1_best_dv: float | None = None
+    phase2_best_dv: float | None = None
+    refinement_improvement_km_s: float | None = None
+    refinement_evaluations: int | None = None
+    optimizer_strategy: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "n_evaluations": self.n_evaluations,
             "n_feasible": self.n_feasible,
             "wall_time_s": round(self.wall_time_s, 3),
@@ -40,6 +45,14 @@ class OptimizationResult:
             "pareto_front_size": len(self.pareto_front),
             "pareto_front": [t.to_dict() for t in self.pareto_front],
         }
+        if self.optimizer_strategy is not None:
+            d["optimizer_strategy"] = self.optimizer_strategy
+            d["phase1_best_dv"] = self.phase1_best_dv
+            d["phase2_best_dv"] = self.phase2_best_dv
+            d["refinement_improvement_km_s"] = self.refinement_improvement_km_s
+            d["refinement_evaluations"] = self.refinement_evaluations
+        return d
+
 
 def evaluate_transfer(
     r1: np.ndarray,
@@ -447,4 +460,159 @@ def optimize_mission_neural_accelerated(
         wall_time_s=wall_time,
         converged=best is not None,
     )
+
+
+def optimize_mission_hybrid(
+    mission: CompiledMission,
+    kernel: PhysicsKernel,
+    n_trials_bayesian: int = 1500,
+    n_refine_top_k: int = 5,     # refine top-K Bayesian solutions
+    time_limit: float = 150.0,
+    seed: int = 42,
+) -> OptimizationResult:
+    """Two-phase hybrid optimizer: Bayesian global + L-BFGS-B local refinement.
+
+    Phase 1: Run Bayesian optimization for n_trials_bayesian evaluations.
+    Phase 2: Take the top-K feasible solutions from Phase 1 and run
+             L-BFGS-B local refinement from each starting point.
+             Return the best refined solution.
+
+    The total Δv of the hybrid result must be ≤ Phase 1 best Δv.
+    """
+    import time as t
+
+    from astra.optimization.gradient import refine_trajectory_lbfgsb
+    start = t.time()
+
+    # Phase 1: Bayesian global search
+    phase1_limit = time_limit * 0.75
+    result_p1 = optimize_mission_bayesian(
+        mission, kernel,
+        n_trials=n_trials_bayesian,
+        time_limit=phase1_limit,
+        seed=seed,
+    )
+
+    if not result_p1.converged or not result_p1.all_trajectories:
+        return result_p1
+
+    max_dv, max_days = _get_hard_limits(mission)
+    mu_sun = GM["SUN"]
+
+    # Build single-objective sorted list of feasible trajectories from Phase 1
+    feasible = sorted(
+        result_p1.all_trajectories,
+        key=lambda t: t.delta_v_total,
+    )[:n_refine_top_k]
+
+    # Phase 2: L-BFGS-B refinement from each top-K starting point
+    bounds_dep = (mission.departure_epoch_start, mission.departure_epoch_end)
+    bounds_tof = (mission.tof_min_seconds, mission.tof_max_seconds)
+    bounds = [bounds_dep, bounds_tof]
+
+    all_refined: list[Trajectory] = list(result_p1.all_trajectories)
+    best_refined: Trajectory | None = result_p1.best_trajectory
+
+    total_refinement_evals = 0
+    phase1_best_dv = result_p1.best_trajectory.delta_v_total if result_p1.best_trajectory else None
+
+    # Temporarily disable ephemeris cache for continuous gradient precision
+    old_cache = kernel.ephemeris.cache
+    kernel.ephemeris.cache = None
+
+    try:
+        for traj in feasible:
+            if t.time() - start > time_limit - 10:
+                break
+            x0 = np.array([traj.departure_epoch, traj.duration_seconds])
+
+            def obj(x: np.ndarray) -> float:
+                dep, tof = float(x[0]), float(x[1])
+                if tof <= 0:
+                    return 99.0
+                try:
+                    r1 = kernel.get_body_state(mission.origin_body, dep).position
+                    v1 = kernel.get_body_state(mission.origin_body, dep).velocity
+                    arr = dep + tof
+                    r2 = kernel.get_body_state(mission.destination_body, arr).position
+                    v2 = kernel.get_body_state(mission.destination_body, arr).velocity
+                except Exception:
+                    return 99.0
+                t_new = evaluate_transfer(
+                    r1, v1, r2, v2, dep, tof, mu_sun,
+                    origin_body=mission.origin_body.name,
+                    destination_body=mission.destination_body.name,
+                    parking_altitude_km=mission.parking_altitude_km,
+                    capture_altitude_km=mission.capture_altitude_km,
+                    use_soi_patching=True,
+                  )
+                if t_new is None:
+                    return 99.0
+                if not t_new.is_feasible(max_dv, max_days):
+                    return 99.0 + t_new.delta_v_total
+                return t_new.delta_v_total
+
+            ref_result = refine_trajectory_lbfgsb(
+                obj, x0, bounds,
+                eps=1.0,
+                gtol=1e-12,
+                ftol=1e-15,
+            )
+            total_refinement_evals += ref_result.n_evaluations
+
+            if ref_result.converged and ref_result.f_refined < max_dv:
+                dep_r, tof_r = float(ref_result.x_refined[0]), float(ref_result.x_refined[1])
+                try:
+                    r1 = kernel.get_body_state(mission.origin_body, dep_r).position
+                    v1 = kernel.get_body_state(mission.origin_body, dep_r).velocity
+                    r2 = kernel.get_body_state(mission.destination_body, dep_r + tof_r).position
+                    v2 = kernel.get_body_state(mission.destination_body, dep_r + tof_r).velocity
+                    t_new = evaluate_transfer(
+                        r1, v1, r2, v2, dep_r, tof_r, mu_sun,
+                        origin_body=mission.origin_body.name,
+                        destination_body=mission.destination_body.name,
+                        parking_altitude_km=mission.parking_altitude_km,
+                        capture_altitude_km=mission.capture_altitude_km,
+                        use_soi_patching=True,
+                    )
+                    if t_new and t_new.is_feasible(max_dv, max_days):
+                        all_refined.append(t_new)
+                        if (best_refined is None or
+                                t_new.delta_v_total < best_refined.delta_v_total):
+                            best_refined = t_new
+                except Exception:
+                    pass
+    finally:
+        # Restore cache for subsequent queries
+        kernel.ephemeris.cache = old_cache
+
+    phase2_best_dv = best_refined.delta_v_total if best_refined else None
+    improvement = (
+        phase1_best_dv - phase2_best_dv
+        if phase1_best_dv is not None and phase2_best_dv is not None
+        else 0.0
+    )
+
+    if best_refined is not None:
+        best_refined.metadata["phase1_best_dv"] = phase1_best_dv
+        best_refined.metadata["phase2_best_dv"] = phase2_best_dv
+        best_refined.metadata["refinement_improvement_km_s"] = improvement
+        best_refined.metadata["refinement_evaluations"] = total_refinement_evals
+        best_refined.metadata["optimizer_strategy"] = "hybrid"
+
+    return OptimizationResult(
+        best_trajectory=best_refined,
+        pareto_front=result_p1.pareto_front,
+        all_trajectories=all_refined,
+        n_evaluations=result_p1.n_evaluations + total_refinement_evals,
+        n_feasible=len([t for t in all_refined if t.is_feasible(max_dv, max_days)]),
+        wall_time_s=t.time() - start,
+        converged=best_refined is not None,
+        phase1_best_dv=phase1_best_dv,
+        phase2_best_dv=phase2_best_dv,
+        refinement_improvement_km_s=improvement,
+        refinement_evaluations=total_refinement_evals,
+        optimizer_strategy="hybrid",
+    )
+
 

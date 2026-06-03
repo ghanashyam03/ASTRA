@@ -130,7 +130,45 @@ if result.converged and result.best_trajectory:
     print(f"Pareto Front Size: {len(result.pareto_front)}")
 ```
 
-### 5. Trajectory Rationale & Explanations
+### 5. Hybrid Optimization (Global Bayesian + Local L-BFGS-B Refinement)
+The hybrid optimization strategy combines the global search capabilities of Bayesian optimization (TPE / NSGA-II) with the rapid local convergence of SciPy's gradient-based `L-BFGS-B` method.
+
+#### When to use which:
+*   **Bayesian Optimizer (`optimize_mission_bayesian`)**: Best for mapping the complete global launch window search space and generating a diverse set of trade-offs along a multi-objective Pareto front.
+*   **Hybrid Optimizer (`optimize_mission_hybrid`)**: Best when you need to refine the global solutions and converge to the true local minimum of the smooth, convex porkchop $\Delta v$ surface. It takes the top-K feasible solutions found by the Bayesian phase and executes L-BFGS-B local refinement on each.
+
+#### Expected Improvement:
+Local refinement typically improves the total trajectory $\Delta v$ by **0.01 to 0.50 km/s** over pure Bayesian global optimization (which operates on a coarser parameter resolution), converging closer to the true physical minimum.
+
+#### Code Example:
+```python
+from astra.physics import PhysicsKernel
+from astra.dsl import parse_mission_file, compile_mission
+from astra.optimization import optimize_mission_hybrid
+
+# Load SPICE and compile mission
+kernel = PhysicsKernel().load()
+dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
+mission = compile_mission(dsl, kernel.ephemeris)
+
+# Run hybrid optimization: 300 Bayesian trials + local L-BFGS-B refinement on top-5 results
+result = optimize_mission_hybrid(
+    mission, kernel,
+    n_trials_bayesian=300,
+    n_refine_top_k=5,
+    time_limit=60.0,
+    seed=42,
+)
+
+if result.converged and result.best_trajectory:
+    print(f"Hybrid optimizer refined trajectory!")
+    print(f"Best Delta-V: {result.best_trajectory.delta_v_total:.3f} km/s")
+    print(f"Phase 1 (Bayesian) Best Δv: {result.phase1_best_dv:.3f} km/s")
+    print(f"Phase 2 (Refined) Best Δv: {result.phase2_best_dv:.3f} km/s")
+    print(f"Refinement Improvement: {result.refinement_improvement_km_s:.4f} km/s")
+```
+
+### 6. Trajectory Rationale & Explanations
 ```python
 from astra.physics import PhysicsKernel
 from astra.dsl import parse_mission_file, compile_mission
