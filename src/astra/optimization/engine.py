@@ -325,7 +325,9 @@ def optimize_mission_neural_accelerated(
     """
     import time as time_mod
 
+    from astra.explainability.window_rationale import compute_synodic_period
     from astra.neural.feasibility import FeasibilityClassifier
+    from astra.neural.features import build_geometric_features
     from astra.neural.training.pipeline import generate_transfer_dataset
 
     start_time = time_mod.time()
@@ -335,6 +337,10 @@ def optimize_mission_neural_accelerated(
     # Seed global numpy random state for neural network weight initialization
     # and data shuffling determinism
     np.random.seed(seed)
+
+    # Precompute synodic period in seconds
+    syn_days = compute_synodic_period(mission.origin_body, mission.destination_body)
+    synodic_period_s = syn_days * 86400.0 if syn_days != float("inf") else 0.0
 
     # Phase 1: generate training data
     logger.info(f"Generating {pretrain_samples} samples for neural pretraining...")
@@ -369,29 +375,37 @@ def optimize_mission_neural_accelerated(
                                   mission.tof_min_seconds,
                                   mission.tof_max_seconds)
 
-        # Neural pre-filter (conservative threshold 0.3)
-        feat = np.array([
-            (dep - mission.departure_epoch_start) / max(
-                mission.departure_epoch_end - mission.departure_epoch_start, 1.0),
-            (tof - mission.tof_min_seconds) / max(
-                mission.tof_max_seconds - mission.tof_min_seconds, 1.0),
-            *[0.0] * 6,  # placeholder planet positions
-        ], dtype=np.float32)
+        # Get planetary states for feature computation
+        try:
+            r1_state = kernel.get_body_state(mission.origin_body, dep)
+            r1 = r1_state.position
+            v1 = r1_state.velocity
+            arr = dep + tof
+            r2_state = kernel.get_body_state(mission.destination_body, arr)
+            r2 = r2_state.position
+            v2 = r2_state.velocity
+        except Exception:
+            return 99.0, 999.0
+
+        # Build actual geometric features
+        feat = build_geometric_features(
+            dep_epoch=dep,
+            tof_seconds=tof,
+            r1_km=r1,
+            v1_km_s=v1,
+            r2_km=r2,
+            dep_epoch_min=mission.departure_epoch_start,
+            dep_epoch_max=mission.departure_epoch_end,
+            tof_min=mission.tof_min_seconds,
+            tof_max=mission.tof_max_seconds,
+            synodic_period_s=synodic_period_s,
+        )
 
         if trial.number >= 100 and not clf.is_likely_feasible(feat):
             n_skipped += 1
             return 99.0, 999.0  # pruned — no physics call
 
-        # Physics evaluation
-        try:
-            r1 = kernel.get_body_state(mission.origin_body, dep).position
-            v1 = kernel.get_body_state(mission.origin_body, dep).velocity
-            arr = dep + tof
-            r2 = kernel.get_body_state(mission.destination_body, arr).position
-            v2 = kernel.get_body_state(mission.destination_body, arr).velocity
-        except Exception:
-            return 99.0, 999.0
-
+        # Physics evaluation (using already retrieved states)
         traj = evaluate_transfer(
             r1, v1, r2, v2, dep, tof, mu_sun,
             origin_body=mission.origin_body.name,
