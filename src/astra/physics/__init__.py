@@ -17,6 +17,12 @@ from astra.physics.exceptions import (
     PhysicsError,
     PropagationError,
 )
+from astra.physics.flyby import (
+    SAFE_FLYBY_ALTITUDE_KM,
+    FlybyResult,
+    compute_flyby,
+    compute_flyby_turn_angle,
+)
 from astra.physics.kernel import PhysicsKernel
 from astra.physics.lambert import (
     LambertSolution,
@@ -44,12 +50,6 @@ from astra.physics.soi import (
     compute_soi_radius,
     get_default_parking_altitude,
     is_in_soi,
-)
-from astra.physics.flyby import (
-    compute_flyby,
-    compute_flyby_turn_angle,
-    FlybyResult,
-    SAFE_FLYBY_ALTITUDE_KM,
 )
 
 __all__ = [
