@@ -376,3 +376,59 @@ Below is a comparative breakdown of the optimal 280-day Earth-Mars transfer from
 | **Total $\Delta v$** | $6.7843$ km/s | **$6.2665$ km/s** |
 | **Departure $C_3$** | $10.4794$ $\text{km}^2/\text{s}^2$ | $10.4794$ $\text{km}^2/\text{s}^2$ |
 
+
+---
+
+## Gravity Assist & Flyby Physics (`astra.physics.flyby`)
+
+Gravity assists (flybys) enable interplanetary trajectories to gain or lose heliocentric energy without expending propellant by exploiting the gravitational field of a planetary body.
+
+### Trajectory Formifications & Classifications
+
+*   **Direct Transfers**: A simple two-impulse conic transfer between the origin planet and the destination planet (e.g. Earth to Mars direct).
+*   **Flyby Transfers**: A multi-body transfer sequence that utilizes one or more intermediate planetary flybys (e.g. Earth -> Venus -> Mars) to shape the trajectory.
+*   **Unpowered Flybys**: The spacecraft enters the planet's Sphere of Influence (SOI) and exits with the same hyperbolic excess speed magnitude ($|v_{\infty, out}| = |v_{\infty, in}|$), but its direction is deflected by the hyperbolic turn angle $\delta$ due to planetary gravity.
+*   **Powered Flybys**: The gravity assist is augmented by an impulsive propulsion burn $\Delta v_{\text{powered}}$ performed at periapsis. This alters the outgoing hyperbolic excess speed ($|v_{\infty, out}| \ne |v_{\infty, in}|$) and changes the turn angle.
+
+### Hyperbolic Deflection Physics
+The hyperbolic turn angle $\delta$ is given by:
+$$\sin(\delta/2) = \frac{1}{e}$$
+where the eccentricity $e$ of the hyperbolic flyby passage is:
+$$e = 1 + \frac{r_p v_{\infty}^2}{\mu}$$
+For asymmetric powered flybys, the total turn angle is the sum of the incoming and outgoing hyperbolic asymptote angles:
+$$\delta = \arcsin(1/e_{\text{in}}) + \arcsin(1/e_{\text{out}})$$
+
+---
+
+## Mission Phase Planning with MCTS (`astra.optimization.mcts`)
+
+ASTRA implements a discrete Monte Carlo Tree Search (MCTS) planner to solve the combinatorial problem of finding optimal flyby body sequences and launch/flight schedules.
+
+### MCTS Search Logic
+-   **Nodes**: Represent a `PhaseState` consisting of the current celestial body, arrival epoch, incoming heliocentric velocity, and cumulative $\Delta v$ spent.
+-   **Actions**: Selecting the next candidate flyby body (e.g., `VENUS`, `EARTH`, `MOON`) and a discrete time of flight (TOF).
+-   **Rollouts**: Randomly selects valid transitions to search for paths reaching the destination body (e.g., `MARS`).
+-   **UCT Selection**: Balances exploration and exploitation using the Upper Confidence Bound for Trees:
+    $$UCT = \frac{Q(s, a)}{N(s, a)} + C \times \sqrt{\frac{\ln N(s)}{N(s, a)}}$$
+-   **Reward Function**: Evaluates feasibility and total $\Delta v$ cost. Feasible sequences that reach the destination within the budget receive a reward of:
+    $$\text{Reward} = 1.0 - \frac{\Delta v_{\text{total}}}{\Delta v_{\text{budget}}}$$
+    Infeasible or incomplete sequences receive a reward of $0.0$, ensuring the planner prioritizes successful arrivals.
+
+---
+
+## Current Project State & Scientific Approximations
+
+### What is Implemented
+*   **Powered and Unpowered Hyperbolic Flyby Models**: Vector rotations about orbital plane normals, periapsis speed calculations, and minimum safe altitude constraints.
+*   **Safe Flyby Altitudes**: Physical radius boundaries combined with atmospheric clearance margins for `MERCURY`, `VENUS`, `EARTH`, `MOON`, `MARS`, `JUPITER`, and `SATURN`.
+*   **MCTS Sequence Planner**: Tree traversal, UCT selection, random simulation rollouts, and complete path collection.
+
+### Remaining Scientific Approximations
+*   **Instantaneous Flyby (Patched-Conics)**: Flybys are treated as occurring instantaneously at the planet's heliocentric position. The heliocentric delta-v gained `dv_helio_km_s` is a patched-conics approximation ($||v_{\infty, out} - v_{\infty, in}||$) rather than a true numerical heliocentric integration of the trajectory under 3-body or heliocentric gravity.
+*   **Planar Orientation**: Choice of flyby orbit plane normal defaults to an arbitrary perpendicular axis if not explicitly provided.
+
+### Intentionally Out of Scope
+*   **N-Body Numerical Integration**: High-fidelity gravitational propagation under multiple bodies simultaneously.
+*   **Atmospheric Aerobraking / Aerocapture / Drag**: Lift and drag forces during close planetary passage.
+
+
