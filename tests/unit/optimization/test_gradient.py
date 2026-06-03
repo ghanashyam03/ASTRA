@@ -1,8 +1,7 @@
 import numpy as np
-import pytest
 from astra.optimization.gradient import refine_trajectory_lbfgsb
 
-def test_refinement_improves_simple_quadratic():
+def test_refinement_improves_simple_quadratic() -> None:
     """L-BFGS-B must find minimum of x² + y² starting from (1, 1)."""
     def quadratic(x: np.ndarray) -> float:
         return float(x[0]**2 + x[1]**2)
@@ -15,7 +14,7 @@ def test_refinement_improves_simple_quadratic():
     assert result.f_refined < 1e-6
     assert result.improvement_km_s > 0.99
 
-def test_refinement_respects_bounds():
+def test_refinement_respects_bounds() -> None:
     """Refined solution must stay within provided bounds."""
     def valley(x: np.ndarray) -> float:
         return float((x[0] - 5.0)**2 + x[1]**2)
@@ -27,7 +26,7 @@ def test_refinement_respects_bounds():
     assert 0.0 <= result.x_refined[0] <= 3.0
     assert -1.0 <= result.x_refined[1] <= 1.0
 
-def test_refinement_handles_infeasible_start():
+def test_refinement_handles_infeasible_start() -> None:
     """Starting from an infeasible region (f=99) must not crash."""
     def always_infeasible(x: np.ndarray) -> float:
         return 99.0
@@ -39,7 +38,7 @@ def test_refinement_handles_infeasible_start():
     assert result.improvement_km_s == 0.0
     # Should not raise, result.converged may be False
 
-def test_refinement_result_has_all_fields():
+def test_refinement_result_has_all_fields() -> None:
     def obj(x: np.ndarray) -> float:
         return float(x[0]**2)
     result = refine_trajectory_lbfgsb(obj, np.array([2.0]), [(-10.0, 10.0)])

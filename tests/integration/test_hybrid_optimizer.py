@@ -1,18 +1,19 @@
 import pytest
 from pathlib import Path
 
+from astra.dsl.compiler import compile_mission
+from astra.dsl.parser import parse_mission_file
+from astra.optimization.engine import (
+    optimize_mission_bayesian,
+    optimize_mission_hybrid,
+)
+from astra.physics.kernel import PhysicsKernel
+
 SPICE = (Path("data/spice_kernels") / "de440.bsp").exists()
 
 @pytest.mark.skipif(not SPICE, reason="SPICE kernels required")
-def test_hybrid_not_worse_than_bayesian():
+def test_hybrid_not_worse_than_bayesian() -> None:
     """Hybrid optimizer Δv must be ≤ pure Bayesian Δv on same mission."""
-    from astra.physics.kernel import PhysicsKernel
-    from astra.dsl.parser import parse_mission_file
-    from astra.dsl.compiler import compile_mission
-    from astra.optimization.engine import (
-        optimize_mission_bayesian,
-        optimize_mission_hybrid,
-    )
     kernel = PhysicsKernel().load()
     dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
     mission = compile_mission(dsl, kernel.ephemeris)
