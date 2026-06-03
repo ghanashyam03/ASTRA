@@ -25,6 +25,8 @@ def test_hybrid_not_worse_than_bayesian() -> None:
         mission, kernel, n_trials_bayesian=300, time_limit=60.0, seed=42)
 
     assert r_bay.converged and r_hyb.converged
+    assert r_bay.best_trajectory is not None
+    assert r_hyb.best_trajectory is not None
     dv_bay = r_bay.best_trajectory.delta_v_total
     dv_hyb = r_hyb.best_trajectory.delta_v_total
     print(f"\nBayesian: {dv_bay:.4f} km/s | Hybrid: {dv_hyb:.4f} km/s")
