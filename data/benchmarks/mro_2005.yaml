@@ -1,0 +1,48 @@
+version: "1.0"
+mission_id: "mro_2005_validation"
+spacecraft:
+  name: "Mars Reconnaissance Orbiter"
+  dry_mass_kg: 1030.0
+  fuel_mass_kg: 1149.0
+  propulsion:
+    type: chemical
+    isp_seconds: 300.0
+    thrust_newtons: 60000.0
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 185.0
+  destination:
+    body: Mars
+    orbit:
+      type: elliptical
+      periapsis_km: 300.0
+      apoapsis_km: 40000.0
+launch_window:
+  start: "2005-08-10T00:00:00Z"
+  end: "2005-08-14T00:00:00Z"
+  resolution_days: 0.5
+  tof_min_days: 190
+  tof_max_days: 230
+constraints:
+  - type: max_delta_v
+    value_km_s: 12.0
+    hard: true
+  - type: max_duration
+    value_days: 230
+    hard: true
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+physics:
+  models: [patched_conics]
+  ephemeris: DE440
+optimization:
+  strategy: hybrid
+  budget:
+    max_evaluations: 1000
+    time_limit_seconds: 90
+  seed: 2
