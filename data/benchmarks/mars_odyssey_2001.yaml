@@ -1,0 +1,48 @@
+version: "1.0"
+mission_id: "mars_odyssey_2001_validation"
+spacecraft:
+  name: "Mars Odyssey"
+  dry_mass_kg: 725.0
+  fuel_mass_kg: 450.0
+  propulsion:
+    type: chemical
+    isp_seconds: 321.0   # Star-48 upper stage
+    thrust_newtons: 65000.0
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 185.0   # typical staging orbit
+  destination:
+    body: Mars
+    orbit:
+      type: elliptical
+      periapsis_km: 300.0
+      apoapsis_km: 40000.0
+launch_window:
+  start: "2001-04-01T00:00:00Z"
+  end: "2001-04-14T00:00:00Z"
+  resolution_days: 0.5
+  tof_min_days: 180
+  tof_max_days: 220
+constraints:
+  - type: max_delta_v
+    value_km_s: 12.0
+    hard: true
+  - type: max_duration
+    value_days: 220
+    hard: true
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+physics:
+  models: [patched_conics]
+  ephemeris: DE440
+optimization:
+  strategy: hybrid
+  budget:
+    max_evaluations: 1000
+    time_limit_seconds: 90
+  seed: 1

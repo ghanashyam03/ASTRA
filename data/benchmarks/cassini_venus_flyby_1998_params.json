@@ -1,0 +1,8 @@
+{
+  "v_inf_approach_km_s": 9.7,
+  "periapsis_altitude_km": 600.0,
+  "body": "VENUS",
+  "turn_angle_deg_reference": 39.95,
+  "heliocentric_dv_km_s_reference": 3.5,
+  "date": "1998-06-24"
+}
