@@ -431,4 +431,17 @@ ASTRA implements a discrete Monte Carlo Tree Search (MCTS) planner to solve the 
 *   **N-Body Numerical Integration**: High-fidelity gravitational propagation under multiple bodies simultaneously.
 *   **Atmospheric Aerobraking / Aerocapture / Drag**: Lift and drag forces during close planetary passage.
 
+---
+
+## Validation & Verification Registry
+
+ASTRA enforces a multi-tiered trajectory validation strategy to ensure numerical precision and scientific credibility. This methodology is split into three main categories:
+
+1. **Analytical Validation**: Direct mathematical checks of core solvers (such as the Universal Variables Izzo Lambert solver and two-body Keplerian propagators) against closed-form analytical solutions and standard textbook problems (e.g. [Curtis Example 5.2](docs/benchmarks.md#1-curtis-earth-satellite-lambert-bvp)).
+2. **Benchmark Validation**: Optimization regression tests, search efficiency benchmarks, and Pareto frontier generation checks over synthetic trajectory search spaces (e.g., the [Earth-Mars 2031](docs/benchmarks.md#7-earth-mars-2031-standard--long-tof) reference mission).
+3. **Historical Mission-Inspired Validation**: Validation of launch windows, C3 departure energies, transfer durations (TOF), and flyby deflection angles inspired by historical planetary missions (e.g., [Mars Odyssey 2001](docs/benchmarks.md#4-mars-odyssey-2001), [MRO 2005](docs/benchmarks.md#5-mars-reconnaissance-orbiter-2005), [Cassini Venus gravity assists](docs/benchmarks.md#3-cassini-venus-flyby-1998), and [Apollo-style Lunar free-return transfers](docs/benchmarks.md#6-lunar-free-return-trajectory)). These are handled as approximations within the limits of patched-conics and two-body dynamics.
+
+For a detailed breakdown of every benchmark currently supported, physical assumptions, target values, expected outputs, and runtime characteristics, see the canonical [Benchmarks Registry](docs/benchmarks.md).
+
+
 
