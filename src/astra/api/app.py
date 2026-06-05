@@ -1,6 +1,7 @@
 """ASTRA FastAPI application. Zero physics logic in this file."""
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from collections.abc import AsyncGenerator
@@ -131,7 +132,7 @@ async def optimize_mission(
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     job_id = str(uuid.uuid4())
-    _jobs[job_id] = {"status": "queued", "job_id": job_id}
+    _jobs[job_id] = {"status": "queued", "job_id": job_id, "mission_yaml": request.mission_yaml}
     background_tasks.add_task(_run_optimization, job_id, request.mission_yaml)
     return {"job_id": job_id, "status": "queued",
             "poll_url": f"/v1/missions/{job_id}/status"}
@@ -152,6 +153,133 @@ async def mission_result(job_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=409,
                             detail=f"Job not complete. Status: {job['status']}")
     return job
+
+@app.get("/v1/missions/{id}/sensitivity")
+async def get_sensitivity(id: str) -> dict[str, Any]:
+    job = _jobs.get(id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {id} not found")
+    if job["status"] != "complete":
+        raise HTTPException(status_code=409, detail=f"Job not complete. Status: {job['status']}")
+
+    best_tid = job.get("best_trajectory_id")
+    if not best_tid:
+        raise HTTPException(status_code=404, detail="No trajectory optimized for this job")
+
+    store = get_store()
+    traj_data = store.get_trajectory(best_tid)
+    if traj_data is None:
+        raise HTTPException(status_code=404, detail="Trajectory not found")
+
+    import numpy as np
+
+    from astra.state.orbital_state import OrbitalState
+    from astra.state.trajectory import Maneuver, Trajectory
+
+    t_dict = traj_data["trajectory"]
+    maneuvers = [
+        Maneuver(
+            epoch=m["epoch"],
+            delta_v=np.array(m["dv_km_s"]),
+            label=m.get("label", ""),
+        )
+        for m in t_dict["maneuvers"]
+    ]
+    s0 = OrbitalState(
+        epoch=t_dict["departure_epoch_j2000"],
+        position=np.zeros(3),
+        velocity=np.zeros(3),
+    )
+    s1 = OrbitalState(
+        epoch=t_dict["arrival_epoch_j2000"],
+        position=np.zeros(3),
+        velocity=np.zeros(3),
+    )
+    trajectory = Trajectory(
+        states=[s0, s1],
+        maneuvers=maneuvers,
+        metadata=t_dict.get("metadata", {}),
+    )
+
+    from astra.dsl.compiler import compile_mission
+    from astra.dsl.parser import parse_mission_string
+    kernel = get_kernel()
+    mission_yaml = job.get("mission_yaml")
+    if not mission_yaml:
+        raise HTTPException(status_code=404, detail="Mission YAML not found in job")
+    dsl = parse_mission_string(mission_yaml)
+    mission = compile_mission(
+        dsl,
+        kernel.ephemeris if kernel._kernels_loaded else None
+    )
+
+    from astra.visualization.sensitivity import analyze_trajectory_sensitivity
+    try:
+        sens_result = analyze_trajectory_sensitivity(trajectory, mission, kernel)
+        return sens_result.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sensitivity analysis failed: {e}")
+
+@app.get("/v1/missions/{id}/pareto-metrics")
+async def get_pareto_metrics(id: str) -> dict[str, Any]:
+    job = _jobs.get(id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {id} not found")
+    if job["status"] != "complete":
+        raise HTTPException(status_code=409, detail=f"Job not complete. Status: {job['status']}")
+
+    mission_id = job.get("mission_id")
+    if not mission_id:
+        raise HTTPException(status_code=404, detail="Mission ID not found in job")
+
+    store = get_store()
+    # Query stored trajectories for this mission (which includes the Pareto front)
+    rows = store.conn.execute(
+        "SELECT trajectory_json FROM trajectories WHERE mission_id = ? AND feasible = true",
+        [mission_id],
+    ).fetchall()
+
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail="No feasible trajectories found for this mission"
+        )
+
+    import numpy as np
+
+    from astra.state.orbital_state import OrbitalState
+    from astra.state.trajectory import Maneuver, Trajectory
+
+    trajectories = []
+    for r in rows:
+        t_dict = json.loads(r[0])
+        maneuvers = [
+            Maneuver(
+                epoch=m["epoch"],
+                delta_v=np.array(m["dv_km_s"]),
+                label=m.get("label", ""),
+            )
+            for m in t_dict["maneuvers"]
+        ]
+        s0 = OrbitalState(
+            epoch=t_dict["departure_epoch_j2000"],
+            position=np.zeros(3),
+            velocity=np.zeros(3),
+        )
+        s1 = OrbitalState(
+            epoch=t_dict["arrival_epoch_j2000"],
+            position=np.zeros(3),
+            velocity=np.zeros(3),
+        )
+        trajectories.append(Trajectory(
+            states=[s0, s1],
+            maneuvers=maneuvers,
+            metadata=t_dict.get("metadata", {}),
+        ))
+
+    from astra.visualization.pareto_plot import build_pareto_plot
+    plot_data = build_pareto_plot(trajectories)
+    return plot_data.to_dict()
 
 # ─── Trajectories ─────────────────────────────────────────────────────────
 @app.get("/v1/trajectories/{trajectory_id}")
