@@ -128,5 +128,50 @@ class TrajectoryStore:
         )
         return rid
 
+    def query_best_per_mission(self, top_n: int = 5) -> list[dict[str, Any]]:
+        """Return top-N best Δv trajectory per mission_id."""
+        rows = self.conn.execute(
+            """
+            WITH ranked AS (
+                SELECT 
+                    mission_id, id, delta_v_total_km_s, duration_days, created_at,
+                    ROW_NUMBER() OVER (PARTITION BY mission_id ORDER BY delta_v_total_km_s ASC) as rn
+                FROM trajectories
+                WHERE feasible = true
+            )
+            SELECT mission_id, id, delta_v_total_km_s, duration_days, created_at
+            FROM ranked
+            WHERE rn = 1
+            ORDER BY delta_v_total_km_s ASC
+            LIMIT ?
+            """,
+            [top_n],
+        ).fetchall()
+        keys = ["mission_id", "id", "delta_v_total_km_s", "duration_days", "created_at"]
+        return [dict(zip(keys, r)) for r in rows]
+
+    def compute_pareto_metrics(self, mission_id: str) -> dict[str, Any]:
+        """Compute Pareto front quality metrics for a mission from stored data."""
+        import numpy as np
+        from astra.optimization.pareto import hypervolume_indicator_2d, pareto_spread
+
+        rows = self.conn.execute(
+            """SELECT delta_v_total_km_s, duration_days FROM trajectories
+               WHERE mission_id = ? AND feasible = true
+               ORDER BY delta_v_total_km_s ASC""",
+            [mission_id],
+        ).fetchall()
+        if len(rows) < 2:
+            return {"error": "insufficient data"}
+        pts = np.array(rows)
+        ref = pts.max(axis=0) * 1.1
+        return {
+            "n_trajectories": len(rows),
+            "hypervolume_indicator": round(hypervolume_indicator_2d(pts, ref), 4),
+            "pareto_spread": round(pareto_spread(pts), 4),
+            "best_dv_km_s": round(float(pts[:, 0].min()), 4),
+            "best_tof_days": round(float(pts[:, 1].min()), 2),
+        }
+
     def close(self) -> None:
         self.conn.close()
