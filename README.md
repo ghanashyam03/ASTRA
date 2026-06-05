@@ -230,6 +230,17 @@ if result.best_trajectory:
         print(f"  - {point}")
 ```
 
+### 8. Trajectory Analytics & Pareto Metrics
+
+ASTRA computes advanced analytics on Pareto-optimal fronts and individual trajectories:
+
+*   **Pareto Dominance**: Objective vectors $\mathbf{a}$ dominate $\mathbf{b}$ if $\mathbf{a}$ is at least as good as $\mathbf{b}$ in all objectives, and strictly better in at least one (minimizing total $\Delta v$ and time of flight).
+*   **Hypervolume Indicator (HVI)**: Quantifies the area of objective space dominated by the Pareto front relative to a reference point (set at $1.1 \times \max(\text{objectives})$). Larger hypervolume indicates a higher quality front.
+*   **Pareto Spread**: Measures the diversity and coverage of the frontier by computing the average pairwise Euclidean distance of normalized Pareto points.
+*   **Sensitivity Analysis**: Approximates the local derivative of total transfer $\Delta v$ with respect to Time of Flight ($TOF$) and Departure Epoch ($dep$) via central finite differences at the optimal trajectory point:
+    $$\frac{\partial (\Delta v)}{\partial x} \approx \frac{f(x + \Delta x) - f(x - \Delta x)}{2 \Delta x}$$
+    Robust bounds gracefully catch infeasible space exceptions, returning status metadata instead of failing.
+
 ---
 
 ## FastAPI API Layer & Trajectory Storage (`astra.api` and `astra.data`)
@@ -253,6 +264,8 @@ ASTRA exposes a standard, high-performance FastAPI web application layer to quer
 *   `POST /v1/missions/optimize` - Queue an asynchronous Bayesian trajectory optimization job using a YAML mission specification string.
 *   `GET /v1/missions/{job_id}/status` - Poll optimization job status (`queued`, `running`, `complete`, `failed`).
 *   `GET /v1/missions/{job_id}/result` - Retrieve the complete optimization result dictionary once completed.
+*   `GET /v1/missions/{id}/sensitivity` - Retrieve central finite-difference sensitivities (time of flight and departure epoch) for the best trajectory of a completed job.
+*   `GET /v1/missions/{id}/pareto-metrics` - Retrieve Plotly-ready Pareto frontier coordinates, 2D hypervolume area, and Pareto spread diversity metrics for a completed job.
 *   `GET /v1/trajectories/{trajectory_id}` - Fetch a stored trajectory record from DuckDB.
 *   `GET /v1/trajectories/{trajectory_id}/explanation` - Retrieve the explainability trace details associated with a trajectory.
 *   `GET /v1/bodies/{body_name}/state` - Query double-precision state vector positions/velocities relative to the Sun.
