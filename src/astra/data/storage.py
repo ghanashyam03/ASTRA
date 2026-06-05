@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import numpy as np
 
+from astra.optimization.pareto import hypervolume_indicator_2d, pareto_spread
 from astra.state.trajectory import Trajectory
 
 
@@ -133,9 +135,16 @@ class TrajectoryStore:
         rows = self.conn.execute(
             """
             WITH ranked AS (
-                SELECT 
-                    mission_id, id, delta_v_total_km_s, duration_days, created_at,
-                    ROW_NUMBER() OVER (PARTITION BY mission_id ORDER BY delta_v_total_km_s ASC) as rn
+                SELECT
+                    mission_id,
+                    id,
+                    delta_v_total_km_s,
+                    duration_days,
+                    created_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY mission_id
+                        ORDER BY delta_v_total_km_s ASC
+                    ) AS rn
                 FROM trajectories
                 WHERE feasible = true
             )
@@ -152,8 +161,6 @@ class TrajectoryStore:
 
     def compute_pareto_metrics(self, mission_id: str) -> dict[str, Any]:
         """Compute Pareto front quality metrics for a mission from stored data."""
-        import numpy as np
-        from astra.optimization.pareto import hypervolume_indicator_2d, pareto_spread
 
         rows = self.conn.execute(
             """SELECT delta_v_total_km_s, duration_days FROM trajectories
