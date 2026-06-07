@@ -43,6 +43,7 @@ class CompiledMission:
     max_evaluations: int
     parking_altitude_km: float = 200.0
     capture_altitude_km: float = 300.0
+    capture_apoapsis_km: float | None = None
 
 def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -> CompiledMission:
     """Compile MissionDSL → CompiledMission domain object.
@@ -106,11 +107,18 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
             h_park = dsl.trajectory.origin.orbit.periapsis_km
 
     h_cap = get_default_parking_altitude(dsl.trajectory.destination.body)
+    capture_apoapsis_km = None
     if dsl.trajectory.destination.orbit is not None:
+        orbit = dsl.trajectory.destination.orbit
         if dsl.trajectory.destination.orbit.altitude_km is not None:
             h_cap = dsl.trajectory.destination.orbit.altitude_km
         elif dsl.trajectory.destination.orbit.periapsis_km is not None:
             h_cap = dsl.trajectory.destination.orbit.periapsis_km
+        
+        if orbit.type == "elliptical" and orbit.apoapsis_km is not None:
+            capture_apoapsis_km = orbit.apoapsis_km
+        else:
+            capture_apoapsis_km = None
 
     day = 86400.0
     return CompiledMission(
@@ -129,4 +137,5 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
         max_evaluations=dsl.optimization.budget.max_evaluations,
         parking_altitude_km=h_park,
         capture_altitude_km=h_cap,
+        capture_apoapsis_km=capture_apoapsis_km,
     )
