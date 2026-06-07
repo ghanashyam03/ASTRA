@@ -142,6 +142,7 @@ def analyze_trajectory_sensitivity(
                 parking_altitude_km=mission.parking_altitude_km,
                 capture_altitude_km=mission.capture_altitude_km,
                 use_soi_patching=True,
+                capture_apoapsis_km=getattr(mission, "capture_apoapsis_km", None),
             )
             return t.delta_v_total if t else 99.0
         except Exception:
@@ -161,6 +162,7 @@ def analyze_trajectory_sensitivity(
                 parking_altitude_km=mission.parking_altitude_km,
                 capture_altitude_km=mission.capture_altitude_km,
                 use_soi_patching=True,
+                capture_apoapsis_km=getattr(mission, "capture_apoapsis_km", None),
             )
             return t.delta_v_total if t else 99.0
         except Exception:
