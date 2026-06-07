@@ -1,68 +1,61 @@
-# Python
+# ====================================================================
+# Git Ignore Rules - ASTRA Frontend Focus
+# ====================================================================
+
+# Node/Next.js (Frontend Caches & Artifacts)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env*.local
+frontend/next-env.d.ts
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.turbo/
+
+# Python Virtual Environments
+.venv/
+venv/
+env/
 __pycache__/
 *.py[cod]
 *.so
 
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Tooling caches
+# Python Tooling & Caches
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-
-# Jupyter
 .ipynb_checkpoints/
 
-# IDEs
-.vscode/
-.idea/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Environment files
-.env
-.env.*
-
-# Logs
-*.log
-
-# Data caches
-data/ephemerides/*
-!data/ephemerides/.gitkeep
-
-# SPICE kernels (large scientific datasets)
-data/spice_kernels/*
-!data/spice_kernels/.gitkeep
-
-# Benchmark outputs
-benchmarks/output/
-
-# DuckDB files
-*.duckdb
-
-# Zarr stores
-*.zarr
-
-# Parquet outputs
-*.parquet
-
-# DuckDB
-*.duckdb
-*.duckdb.wal
-
-# Runtime outputs
+# Non-Frontend Source & Project Files
+src/
+tests/
+config/
+scripts/
+docs/
+Dockerfile
+pyproject.toml
+uv.lock
+.python-version
 *_result.json
 results/
 outputs/
+benchmarks/output/
+
+# Data & Kernels
+data/
+*.duckdb
+*.duckdb.wal
+*.zarr
+*.parquet
+
+# IDE & OS Configuration Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.env
+.env.*
