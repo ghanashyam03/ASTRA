@@ -69,6 +69,7 @@ def evaluate_transfer(
     parking_altitude_km: float = 200.0,
     capture_altitude_km: float = 300.0,
     use_soi_patching: bool = True,
+    capture_apoapsis_km: float | None = None,
 ) -> Trajectory | None:
     """Compute a patched-conics interplanetary transfer.
 
@@ -101,7 +102,12 @@ def evaluate_transfer(
     if use_soi_patching:
         from astra.physics.maneuvers import arrival_delta_v, departure_delta_v
         dv1_mag = departure_delta_v(v_inf_dep, parking_altitude_km, origin_body)
-        dv2_mag = arrival_delta_v(v_inf_arr, capture_altitude_km, destination_body)
+        dv2_mag = arrival_delta_v(
+            v_inf_arr,
+            capture_altitude_km,
+            destination_body,
+            apoapsis_km=capture_apoapsis_km,
+        )
         # Reconstruct Δv vectors in same direction scaled to SOI magnitudes
         dv1 = (v_inf_dep / max(float(np.linalg.norm(v_inf_dep)), 1e-10)) * dv1_mag
         dv2 = (v_inf_arr / max(float(np.linalg.norm(v_inf_arr)), 1e-10)) * dv2_mag
@@ -139,6 +145,7 @@ def evaluate_transfer(
             "c3_km2_s2": float(np.dot(v_inf_dep, v_inf_dep)),
             "parking_altitude_km": parking_altitude_km,
             "capture_altitude_km": capture_altitude_km,
+            "capture_apoapsis_km": capture_apoapsis_km,
         },
     )
 
@@ -185,6 +192,7 @@ def compute_porkchop(
                 parking_altitude_km=mission.parking_altitude_km,
                 capture_altitude_km=mission.capture_altitude_km,
                 use_soi_patching=True,
+                capture_apoapsis_km=mission.capture_apoapsis_km,
             )
             if traj is not None:
                 dv_grid[i, j] = traj.delta_v_total
@@ -241,6 +249,7 @@ def optimize_mission_bayesian(
             parking_altitude_km=mission.parking_altitude_km,
             capture_altitude_km=mission.capture_altitude_km,
             use_soi_patching=True,
+            capture_apoapsis_km=mission.capture_apoapsis_km,
         )
         if traj is None:
             return 99.0, 999.0
@@ -287,6 +296,7 @@ def optimize_mission_bayesian(
                     parking_altitude_km=mission.parking_altitude_km,
                     capture_altitude_km=mission.capture_altitude_km,
                     use_soi_patching=True,
+                    capture_apoapsis_km=mission.capture_apoapsis_km,
                 )
                 if traj and traj.is_feasible(max_dv, max_days):
                     pareto.append(traj)
@@ -413,6 +423,7 @@ def optimize_mission_neural_accelerated(
             parking_altitude_km=mission.parking_altitude_km,
             capture_altitude_km=mission.capture_altitude_km,
             use_soi_patching=True,
+            capture_apoapsis_km=mission.capture_apoapsis_km,
         )
         if traj is None:
             # Online update: physics says infeasible
@@ -454,6 +465,7 @@ def optimize_mission_neural_accelerated(
                     parking_altitude_km=mission.parking_altitude_km,
                     capture_altitude_km=mission.capture_altitude_km,
                     use_soi_patching=True,
+                    capture_apoapsis_km=mission.capture_apoapsis_km,
                 )
                 if traj and traj.is_feasible(max_dv, max_days):
                     pareto.append(traj)
@@ -559,7 +571,8 @@ def optimize_mission_hybrid(
                     parking_altitude_km=mission.parking_altitude_km,
                     capture_altitude_km=mission.capture_altitude_km,
                     use_soi_patching=True,
-                  )
+                    capture_apoapsis_km=mission.capture_apoapsis_km,
+                )
                 if t_new is None:
                     return 99.0
                 if not t_new.is_feasible(max_dv, max_days):
@@ -588,6 +601,7 @@ def optimize_mission_hybrid(
                         parking_altitude_km=mission.parking_altitude_km,
                         capture_altitude_km=mission.capture_altitude_km,
                         use_soi_patching=True,
+                        capture_apoapsis_km=mission.capture_apoapsis_km,
                     )
                     if t_new and t_new.is_feasible(max_dv, max_days):
                         all_refined.append(t_new)

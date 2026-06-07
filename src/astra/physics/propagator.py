@@ -13,6 +13,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 from astra.physics.exceptions import PropagationError
+from astra.physics.forces.gravity import ForceModel
 from astra.state.orbital_state import PHYSICAL_RADIUS, OrbitalState
 
 
@@ -100,12 +101,34 @@ def two_body_ode(
     return res
 
 
+def build_ode(forces: list[ForceModel]) -> Callable[[float, np.ndarray], np.ndarray]:
+    """Build a system of differential equations compatible with solve_ivp.
+
+    Parameters
+    ----------
+    forces : list[ForceModel]
+        A list of force model components to include in the ODE.
+
+    Returns
+    -------
+    Callable[[float, np.ndarray], np.ndarray]
+        The derivative function dy/dt = f(t, y) for integration.
+    """
+    def ode(t: float, y: np.ndarray) -> np.ndarray:
+        accel = np.zeros(3, dtype=np.float64)
+        for f in forces:
+            accel += f.acceleration(y, t)
+        return np.array([y[3], y[4], y[5], accel[0], accel[1], accel[2]], dtype=np.float64)
+    return ode
+
+
 def propagate_two_body(
     state: OrbitalState,
     dt_seconds: float,
     rtol: float = 1e-10,
     atol: float = 1e-12,
     integrator: Integrator | None = None,
+    forces: list[ForceModel] | None = None,
 ) -> OrbitalState:
     """Propagate state forward by dt_seconds using pluggable integrator.
     
@@ -140,15 +163,25 @@ def propagate_two_body(
     start_time = time.perf_counter()
     
     # Execute integration
-    res = integrator.integrate(
-        two_body_ode,
-        t_span=(0.0, float(dt_seconds)),
-        y0=y0,
-        rtol=rtol,
-        atol=atol,
-        args=(mu,),
-        events=collision_event
-    )
+    if forces is None:
+        res = integrator.integrate(
+            two_body_ode,
+            t_span=(0.0, float(dt_seconds)),
+            y0=y0,
+            rtol=rtol,
+            atol=atol,
+            args=(mu,),
+            events=collision_event
+        )
+    else:
+        res = integrator.integrate(
+            build_ode(forces),
+            t_span=(0.0, float(dt_seconds)),
+            y0=y0,
+            rtol=rtol,
+            atol=atol,
+            events=collision_event
+        )
     
     elapsed_time = time.perf_counter() - start_time
 
@@ -192,6 +225,7 @@ def propagate_to_times(
     rtol: float = 1e-10,
     atol: float = 1e-12,
     integrator: Integrator | None = None,
+    forces: list[ForceModel] | None = None,
 ) -> list[OrbitalState]:
     """Propagate to multiple time points. Returns list of OrbitalStates."""
     if integrator is None:
@@ -219,16 +253,27 @@ def propagate_to_times(
     times_eval = np.asarray(times_seconds, dtype=np.float64)
 
     start_time = time.perf_counter()
-    res = integrator.integrate(
-        two_body_ode,
-        t_span=(0.0, float(times_eval[-1])),
-        y0=y0,
-        rtol=rtol,
-        atol=atol,
-        t_eval=times_eval,
-        args=(mu,),
-        events=collision_event
-    )
+    if forces is None:
+        res = integrator.integrate(
+            two_body_ode,
+            t_span=(0.0, float(times_eval[-1])),
+            y0=y0,
+            rtol=rtol,
+            atol=atol,
+            t_eval=times_eval,
+            args=(mu,),
+            events=collision_event
+        )
+    else:
+        res = integrator.integrate(
+            build_ode(forces),
+            t_span=(0.0, float(times_eval[-1])),
+            y0=y0,
+            rtol=rtol,
+            atol=atol,
+            t_eval=times_eval,
+            events=collision_event
+        )
     elapsed_time = time.perf_counter() - start_time
 
     if not res.success:

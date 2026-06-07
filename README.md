@@ -12,6 +12,7 @@ ASTRA is a premium, physics-constrained orbital trajectory optimization and miss
 *   **Izzo Lambert Solver**: Universal variables algorithm for two-point boundary value problems. Hardened against collinear transfer geometries and time-of-flight bounds, raising deterministic exceptions (`LambertSingularityError` and `LambertConvergenceError`).
 *   **Pluggable Integrator Interface**: Supports numerical propagation using the Runge-Kutta 4(5) solver (`RK45Integrator`) with modular support for symplectic or custom adaptive integration solvers.
 *   **Physical Collision Detection**: Incorporates physical planetary equatorial radii boundaries (`PHYSICAL_RADIUS`) inside propagation loops to raise terminal collision exceptions synchronously.
+*   **Modular Perturbation Forces**: Provides a pluggable force model system (`ForceModel`) enabling composable ODE construction (combining point-mass gravity, J2 perturbations, solar radiation pressure, and atmospheric drag).
 
 ### 2. ASTRA Mission DSL (`astra.dsl`)
 *   **Strict Pydantic v2 Schema**: High-level validation models verifying dry mass, fuel mass, Isp boundaries, time-of-flight spans, launch windows, constraints, and objective weights.
@@ -32,6 +33,39 @@ ASTRA is a premium, physics-constrained orbital trajectory optimization and miss
 
 ---
 
+## Modular Perturbation Forces Layer (`astra.physics.forces`)
+
+ASTRA features a pluggable force model architecture to enable high-fidelity numerical propagation. The ODE solver in `propagator.py` builds the state derivative dynamically from a composable list of force components.
+
+### 1. Pluggable Force Interface (`ForceModel`)
+Every force model implements the abstract base class `ForceModel` and defines:
+```python
+def acceleration(self, state_vec: np.ndarray, t: float) -> np.ndarray:
+```
+where `state_vec` is `[x, y, z, vx, vy, vz]` (in `np.float64`) and returns `[ax, ay, az]` in km/s². All models are numerically protected to return a zero vector if `r_mag < 1e-6` km.
+
+### 2. Implemented Force Models
+*   **PointMassGravity**: Computes Keplerian central body gravity acceleration:
+    $$\mathbf{a}_{\text{grav}} = -\frac{\mu \mathbf{r}}{\|\mathbf{r}\|^3}$$
+*   **J2Perturbation**: Models the oblateness perturbation of a planet:
+    $$a_x = \text{factor} \cdot x \left(\frac{5z^2}{\|\mathbf{r}\|^2} - 1\right)$$
+    $$a_y = \text{factor} \cdot y \left(\frac{5z^2}{\|\mathbf{r}\|^2} - 1\right)$$
+    $$a_z = \text{factor} \cdot z \left(\frac{5z^2}{\|\mathbf{r}\|^2} - 3\right)$$
+    where $\text{factor} = \frac{3}{2} J_2 \mu \frac{R_{\text{body}}^2}{\|\mathbf{r}\|^5}$. Equatorial radii ($R_{\text{body}}$) are retrieved from `PHYSICAL_RADIUS`. Constants are provided in `J2_CONSTANTS` (e.g., Earth: $1.08263 \times 10^{-3}$, Mars: $1.96045 \times 10^{-3}$).
+*   **SolarRadiationPressure**: Calculates acceleration from solar photons, assuming the spacecraft is always in sunlight:
+    $$\mathbf{a}_{\text{srp}} = \frac{C_r A_{\text{m2}} P_{\text{solar}}}{\text{mass}_{\text{kg}}} \left(\frac{\text{AU}}{\|\mathbf{r}_{\text{sc}}\| }\right)^2 \mathbf{u}_{\text{sun}} \cdot 10^{-3}$$
+    where $A_{\text{m2}}$ is cross-sectional area, $C_r$ is reflectivity, $\mathbf{u}_{\text{sun}} = -\mathbf{r}_{\text{sc}} / \|\mathbf{r}_{\text{sc}}\|$ is the unit vector pointing toward the Sun, and $P_{\text{solar}} = 4.56 \times 10^{-6}$ N/m² at 1 AU ($1.496 \times 10^8$ km).
+*   **AtmosphericDrag**: Computes drag using an exponential density model:
+    $$\mathbf{a}_{\text{drag}} = -\frac{1}{2} C_d \frac{A_{\text{m2}}}{\text{mass}_{\text{kg}}} \rho \|\mathbf{v}\| \mathbf{v} \cdot 10^{-3}$$
+    where $\rho = \rho_0 e^{-\frac{h}{H}}$ (in kg/m³) is scaled to standard physical surface densities (Earth: $1.225$ kg/m³, Mars: $0.020$ kg/m³) from `ATMOSPHERE_CONSTANTS`. Altitudes exceeding the scale-height cutoff (Earth: $1000$ km, Mars: $200$ km) bypass the computation to return zero acceleration.
+
+### 3. Known Limitations of Current Perturbation Models
+*   **No Shadow / Eclipse Model**: Solar Radiation Pressure assumes the spacecraft has a line of sight to the Sun at all times, ignoring planetary shadows (umbra/penumbra).
+*   **Constant Scale Height**: Atmospheric drag uses a static exponential atmosphere model with a single constant scale height ($H$). It does not account for diurnal/solar-cycle variation, temperature fluctuations, or atmospheric rotation.
+*   **Spherical Drag Coefficient**: Spacecraft drag ($C_d$) is treated as isotropic and constant, ignoring orientation, attitude, and complex spacecraft geometry.
+
+---
+
 ## Repository Structure
 
 ```text
@@ -47,6 +81,7 @@ astra/
 │       ├── explainability/           # Delta-V breakdowns, window rationales, constraints
 │       ├── optimization/             # Porkchop computation, Bayesian optimizer, Search Space
 │       ├── physics/                  # Lambert Solver, Ephemeris Engine, Propagator
+│       │   └── forces/               # Modular force models (Gravity, J2, SRP, Drag)
 │       └── state/                    # Spacecraft, Trajectory, and Orbital Primitives
 └── tests/
     ├── integration/                  # End-to-End Optimization integration tests
@@ -367,6 +402,13 @@ ASTRA differentiates between **Heliocentric $\Delta v$** (which represents the d
         $$v_{\text{cap}} = \sqrt{\frac{\mu_{\text{dest}}}{R_{\text{dest}} + h_{\text{capture}}}}$$
         $$v_{\text{hyp,arr}} = \sqrt{v_{\infty,\text{arr}}^2 + \frac{2\mu_{\text{dest}}}{R_{\text{dest}} + h_{\text{capture}}}}$$
         $$\Delta v_{\text{MOI}} = v_{\text{hyp,arr}} - v_{\text{cap}}$$
+    *   **Elliptical Capture Support**: If an elliptical capture orbit is specified (using `apoapsis_km` as the radius from the body center), the MOI burn inserts the spacecraft into the capture ellipse at its periapsis. The arrival delta-v is the periapsis deceleration burn only:
+        $$v_{\text{peri,ellipse}} = \sqrt{\mu_{\text{dest}} \left(\frac{2}{r_{\text{peri}}} - \frac{1}{a_{\text{capture}}}\right)}$$
+        $$\Delta v_{\text{MOI}} = v_{\text{hyp,arr}} - v_{\text{peri,ellipse}}$$
+        where $r_{\text{peri}} = R_{\text{dest}} + h_{\text{capture}}$ and $a_{\text{capture}} = (r_{\text{peri}} + r_{\text{apo}}) / 2.0$.
+    *   **Circularization Burn Modeling**: If the mission requires circularization from this capture ellipse, the subsequent circularization burn at the capture orbit's apoapsis is calculated as:
+        $$\Delta v_{\text{circularization}} = v_{\text{circular}} - v_{\text{apo,ellipse}}$$
+        where $v_{\text{circular}} = \sqrt{\frac{\mu_{\text{dest}}}{r_{\text{apo}}}}$ and $v_{\text{apo,ellipse}} = \sqrt{\mu_{\text{dest}} \left(\frac{2}{r_{\text{apo}}} - \frac{1}{a_{\text{capture}}}\right)}$.
     *   **Total Mission $\Delta v$**:
         $$\Delta v_{\text{total}} = \Delta v_{\text{TMI}} + \Delta v_{\text{MOI}}$$
 
@@ -432,6 +474,8 @@ ASTRA implements a discrete Monte Carlo Tree Search (MCTS) planner to solve the 
 ## Current Project State & Scientific Approximations
 
 ### What is Implemented
+*   **Modular Forces Layer**: Composable force system (`ForceModel`) enabling integration of J2 oblateness, solar radiation pressure, and exponential atmospheric drag.
+*   **Elliptical Capture & Circularization**: Multi-impulse capture orbit targeting, supporting elliptical periapsis insertion and subsequent apoapsis circularization burns.
 *   **Powered and Unpowered Hyperbolic Flyby Models**: Vector rotations about orbital plane normals, periapsis speed calculations, and minimum safe altitude constraints.
 *   **Safe Flyby Altitudes**: Physical radius boundaries combined with atmospheric clearance margins for `MERCURY`, `VENUS`, `EARTH`, `MOON`, `MARS`, `JUPITER`, and `SATURN`.
 *   **MCTS Sequence Planner**: Tree traversal, UCT selection, random simulation rollouts, and complete path collection.
@@ -442,7 +486,7 @@ ASTRA implements a discrete Monte Carlo Tree Search (MCTS) planner to solve the 
 
 ### Intentionally Out of Scope
 *   **N-Body Numerical Integration**: High-fidelity gravitational propagation under multiple bodies simultaneously.
-*   **Atmospheric Aerobraking / Aerocapture / Drag**: Lift and drag forces during close planetary passage.
+*   **Complex Aerodynamics**: Aerothermal modeling, lift forces, and active guidance during aerocapture/aerobraking passes.
 
 ---
 

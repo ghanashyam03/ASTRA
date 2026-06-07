@@ -37,6 +37,20 @@ class OrbitSchema(BaseModel):
     periapsis_km: float | None = None     # for elliptical
     apoapsis_km: float | None = None      # for elliptical
 
+    @model_validator(mode="after")
+    def validate_orbit(self) -> OrbitSchema:
+        if self.type == "elliptical":
+            if self.periapsis_km is None or self.apoapsis_km is None:
+                raise ValueError(
+                    "Both periapsis_km and apoapsis_km must be provided for elliptical orbits"
+                )
+            if self.apoapsis_km <= self.periapsis_km:
+                raise ValueError("apoapsis must be greater than periapsis radius from center")
+        elif self.type == "circular":
+            if self.altitude_km is None:
+                raise ValueError("altitude_km must be provided for circular orbits")
+        return self
+
 class BodyOrbitSchema(BaseModel):
     body: str
     orbit: OrbitSchema | None = None
