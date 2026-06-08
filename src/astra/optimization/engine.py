@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import optuna
@@ -15,6 +15,9 @@ from astra.physics.kernel import PhysicsKernel
 from astra.physics.lambert import find_best_transfer
 from astra.state.orbital_state import GM, CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
+
+if TYPE_CHECKING:
+    from astra.neural.surrogate import NeuralSurrogate
 
 logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -642,5 +645,158 @@ def optimize_mission_hybrid(
         refinement_evaluations=total_refinement_evals,
         optimizer_strategy="hybrid",
     )
+
+
+def optimize_mission_mcts(
+    mission: CompiledMission,
+    kernel: PhysicsKernel,
+    flyby_candidates: list[str] | None = None,
+    n_iterations: int = 500,
+    dv_budget: float = 15.0,
+    seed: int = 42,
+    surrogate: NeuralSurrogate | None = None,
+    uncertainty_weight: float = 0.0,
+) -> OptimizationResult:
+    """Optimize a mission trajectory using Monte Carlo Tree Search flyby planning.
+
+    Parameters
+    ----------
+    mission : CompiledMission
+        The compiled mission profile.
+    kernel : PhysicsKernel
+        The physics kernel for querying body states and propagation.
+    flyby_candidates : list[str] | None
+        List of candidate flyby body names.
+    n_iterations : int
+        Number of MCTS iterations to perform.
+    dv_budget : float
+        Total delta-v budget in km/s.
+    seed : int
+        Random seed for the search.
+    surrogate : NeuralSurrogate | None
+        Optional neural surrogate model for uncertainty-aware search.
+    uncertainty_weight : float
+        Weight parameter for surrogate uncertainty penalization.
+
+    Returns
+    -------
+    OptimizationResult
+        The optimization outcome including the best trajectory if found.
+    """
+    from astra.optimization.mcts import MCTSPlanner
+
+    planner = MCTSPlanner(
+        mission=mission,
+        kernel=kernel,
+        max_depth=4,
+        n_iterations=n_iterations,
+        dv_budget=dv_budget,
+        seed=seed,
+        flyby_candidates=flyby_candidates,
+        surrogate=surrogate,
+        uncertainty_weight=uncertainty_weight,
+    )
+
+    mcts_result = planner.run()
+
+    best_trajectory = None
+    all_trajectories = []
+
+    if mcts_result.converged and mcts_result.all_paths:
+        best_path = mcts_result.all_paths[0]  # sorted by delta-v ascending, first is best
+
+        # Create OrbitalStates for origin and destination
+        dep_state = kernel.get_body_state(CelestialBody[best_path[0].body], best_path[0].epoch)
+        arr_state = kernel.get_body_state(CelestialBody[best_path[-1].body], best_path[-1].epoch)
+
+        # Create Maneuver objects for each phase transition
+        # We split the last transition's delta-v to separate the capture delta-v at destination.
+        maneuvers = []
+        n_states = len(best_path)
+
+        # Calculate the capture delta-v (dv_cap) at destination
+        dv_cap = 0.0
+        try:
+            body_to = CelestialBody[best_path[-1].body]
+            body_from = CelestialBody[best_path[-2].body]
+            r1_state = kernel.get_body_state(body_from, best_path[-2].epoch)
+            r2_state = kernel.get_body_state(body_to, best_path[-1].epoch)
+            sol = find_best_transfer(
+                r1=r1_state.position,
+                v1_body=r1_state.velocity,
+                r2=r2_state.position,
+                v2_body=r2_state.velocity,
+                tof=best_path[-1].epoch - best_path[-2].epoch,
+                mu=GM["SUN"],
+                max_revs=0,
+            )
+            v_arr = sol.v2
+            v2_body = r2_state.velocity
+            from astra.physics.maneuvers import arrival_delta_v
+            h_cap = mission.capture_altitude_km
+            v_inf_arr = v2_body - v_arr
+            dv_cap = arrival_delta_v(v_inf_arr, h_cap, best_path[-1].body)
+        except Exception:
+            dv_cap = 0.0
+
+        # Create maneuvers for transitions before the last one
+        for i in range(1, n_states - 1):
+            dv_mag = best_path[i].dv_spent - best_path[i-1].dv_spent
+            delta_v_vec = np.array([dv_mag, 0.0, 0.0], dtype=np.float64)
+            label = "DEP" if i == 1 else f"FLY_{best_path[i-1].body}"
+            epoch = best_path[i-1].epoch
+            maneuvers.append(Maneuver(epoch=epoch, delta_v=delta_v_vec, label=label))
+
+        # Handle the last transition: split into remaining dv and capture dv
+        dv_last_total = best_path[-1].dv_spent - best_path[-2].dv_spent
+        dv_remain = max(0.0, dv_last_total - dv_cap)
+
+        if n_states == 2:
+            # Direct transfer: DEP and CAP
+            maneuvers.append(Maneuver(
+                epoch=best_path[0].epoch,
+                delta_v=np.array([dv_remain, 0.0, 0.0], dtype=np.float64),
+                label="DEP"
+            ))
+            maneuvers.append(Maneuver(
+                epoch=best_path[1].epoch,
+                delta_v=np.array([dv_cap, 0.0, 0.0], dtype=np.float64),
+                label="CAP"
+            ))
+        else:
+            # Multi-leg transfer: FLY_body and CAP
+            maneuvers.append(Maneuver(
+                epoch=best_path[-2].epoch,
+                delta_v=np.array([dv_remain, 0.0, 0.0], dtype=np.float64),
+                label=f"FLY_{best_path[-2].body}"
+            ))
+            maneuvers.append(Maneuver(
+                epoch=best_path[-1].epoch,
+                delta_v=np.array([dv_cap, 0.0, 0.0], dtype=np.float64),
+                label="CAP"
+            ))
+
+        best_trajectory = Trajectory(
+            states=[dep_state, arr_state],
+            maneuvers=maneuvers,
+            metadata={
+                "best_sequence": mcts_result.best_sequence,
+                "best_dv_total": mcts_result.best_dv_total,
+                "n_iterations": mcts_result.n_iterations,
+                "wall_time_s": mcts_result.wall_time_s,
+            }
+        )
+        all_trajectories = [best_trajectory]
+
+    return OptimizationResult(
+        best_trajectory=best_trajectory,
+        pareto_front=[],
+        all_trajectories=all_trajectories,
+        n_evaluations=mcts_result.n_iterations,
+        n_feasible=len(mcts_result.all_paths),
+        wall_time_s=mcts_result.wall_time_s,
+        converged=mcts_result.converged,
+    )
+
 
 

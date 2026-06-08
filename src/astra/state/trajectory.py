@@ -64,3 +64,11 @@ class Trajectory:
             ],
             "metadata": self.metadata,
         }
+
+
+@dataclass
+class TrajectoryValidationResult:
+    is_valid: bool
+    dv_diff: float
+    pos_diff: float
+    diagnostics: dict[str, Any] = field(default_factory=dict)

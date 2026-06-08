@@ -4,7 +4,7 @@ import pytest
 
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_file
-from astra.optimization.mcts import MCTSPlanner
+from astra.optimization.mcts import MCTSPlanner, MCTSResult
 from astra.physics.kernel import PhysicsKernel
 
 SPICE = (Path("data/spice_kernels") / "de440.bsp").exists()
@@ -83,7 +83,9 @@ def test_mcts_runs_successfully_for_earth_mars() -> None:
         flyby_candidates=["VENUS"],
     )
 
-    paths = planner.run()
+    result = planner.run()
+    assert isinstance(result, MCTSResult)
+    paths = result.all_paths
     assert isinstance(paths, list)
     
     # If any paths reached Mars, check their validity
