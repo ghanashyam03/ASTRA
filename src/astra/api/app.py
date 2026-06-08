@@ -137,6 +137,44 @@ async def optimize_mission(
     return {"job_id": job_id, "status": "queued",
             "poll_url": f"/v1/missions/{job_id}/status"}
 
+
+class MCTSRequest(BaseModel):
+    mission_yaml: str
+    flyby_candidates: list[str] = ["VENUS", "EARTH"]
+    n_iterations: int = 500
+    dv_budget: float = 15.0
+
+
+@app.post("/v1/missions/mcts")
+async def mcts_plan(request: MCTSRequest) -> dict[str, Any]:
+    from astra.dsl.compiler import compile_mission
+    from astra.dsl.parser import parse_mission_string
+    from astra.optimization.engine import optimize_mission_mcts
+
+    kernel = get_kernel()
+    if not kernel._kernels_loaded:
+        raise HTTPException(status_code=503, detail="SPICE kernels not loaded")
+
+    try:
+        dsl = parse_mission_string(request.mission_yaml)
+        mission = compile_mission(
+            dsl,
+            kernel.ephemeris
+        )
+        result = optimize_mission_mcts(
+            mission=mission,
+            kernel=kernel,
+            flyby_candidates=request.flyby_candidates,
+            n_iterations=request.n_iterations,
+            dv_budget=request.dv_budget,
+            seed=mission.seed,
+        )
+        return result.to_dict()
+    except Exception as e:
+        logger.exception("MCTS planning failed")
+        raise HTTPException(status_code=422, detail=str(e))
+
+
 @app.get("/v1/missions/{job_id}/status")
 async def mission_status(job_id: str) -> dict[str, Any]:
     job = _jobs.get(job_id)

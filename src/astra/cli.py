@@ -71,6 +71,13 @@ def cmd_optimize(args: argparse.Namespace) -> int:
             time_limit=time_limit,
             seed=mission.seed,
         )
+    elif strategy == "mcts":
+        from astra.optimization.engine import optimize_mission_mcts
+        result = optimize_mission_mcts(
+            mission, kernel,
+            n_iterations=args.trials,
+            seed=mission.seed,
+        )
     else:
         result = optimize_mission_bayesian(
             mission, kernel,
@@ -138,7 +145,7 @@ def main() -> None:
     opt.add_argument("mission", nargs="?", help="Path to mission YAML file")
     opt.add_argument("--trials", type=int, default=2000)
     opt.add_argument("--time-limit", type=int, default=120)
-    opt.add_argument("--strategy", choices=["bayesian", "neural", "hybrid"],
+    opt.add_argument("--strategy", choices=["bayesian", "neural", "hybrid", "mcts"],
                      default="bayesian", help="Optimization strategy to use")
     opt.add_argument("--neural", action="store_true",
                      help="Use neural-accelerated optimization (legacy)")

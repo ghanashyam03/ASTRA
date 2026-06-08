@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -16,6 +17,9 @@ from astra.physics.flyby import SAFE_FLYBY_ALTITUDE_KM
 from astra.physics.kernel import PhysicsKernel
 from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody
 
+if TYPE_CHECKING:
+    from astra.neural.surrogate import NeuralSurrogate
+
 
 @dataclass
 class PhaseState:
@@ -23,6 +27,40 @@ class PhaseState:
     epoch: float
     v_helio: np.ndarray  # spacecraft heliocentric velocity after arrival/departure [km/s]
     dv_spent: float      # cumulative delta-v spent [km/s]
+    predicted_dv: float = 0.0
+    uncertainty: float = 0.0
+
+
+@dataclass
+class MCTSResult:
+    best_sequence: list[str]
+    best_dv_total: float
+    all_paths: list[list[PhaseState]]
+    n_iterations: int
+    wall_time_s: float
+    converged: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert result to a serializable dictionary."""
+        return {
+            "best_sequence": self.best_sequence,
+            "best_dv_total": self.best_dv_total,
+            "n_iterations": self.n_iterations,
+            "wall_time_s": round(self.wall_time_s, 3),
+            "converged": self.converged,
+            "all_paths": [
+                [
+                    {
+                        "body": p.body,
+                        "epoch": p.epoch,
+                        "dv_spent": p.dv_spent,
+                    }
+                    for p in path
+                ]
+                for path in self.all_paths
+            ]
+        }
+
 
 
 class MCTSNode:
@@ -52,6 +90,8 @@ class MCTSPlanner:
         max_duration: float = 1000.0 * 86400.0,
         seed: int = 42,
         flyby_candidates: list[str] | None = None,
+        surrogate: NeuralSurrogate | None = None,
+        uncertainty_weight: float = 0.0,
     ) -> None:
         self.mission = mission
         self.kernel = kernel
@@ -62,6 +102,8 @@ class MCTSPlanner:
         self.max_duration = max_duration
         self.seed = seed
         self.rng = np.random.default_rng(seed)
+        self.surrogate = surrogate
+        self.uncertainty_weight = uncertainty_weight
 
         self.origin_body = mission.origin_body.name.upper()
         self.destination_body = mission.destination_body.name.upper()
@@ -79,15 +121,19 @@ class MCTSPlanner:
             epoch=self.start_epoch,
             v_helio=r0_state.velocity,
             dv_spent=0.0,
+            predicted_dv=0.0,
+            uncertainty=0.0,
         )
         root_actions = self._get_valid_actions(root_state)
         self.root = MCTSNode(root_state, untried_actions=root_actions)
 
-    def run(self) -> list[list[PhaseState]]:
+    def run(self) -> MCTSResult:
         """Run the MCTS phase planner search.
-        Returns a list of PhaseState sequences representing promising flyby chains,
-        sorted by total delta-v ascending.
+        Returns an MCTSResult containing the search outcomes.
         """
+        import time
+        start_time = time.perf_counter()
+
         for _ in range(self.n_iterations):
             node = self._select(self.root)
 
@@ -114,7 +160,27 @@ class MCTSPlanner:
             if p[-1].body == self.destination_body and p[-1].dv_spent <= self.dv_budget
         ]
         valid_paths.sort(key=lambda p: p[-1].dv_spent)
-        return valid_paths
+
+        if valid_paths:
+            best_path = valid_paths[0]
+            best_sequence = [p.body for p in best_path]
+            best_dv = best_path[-1].dv_spent
+            converged = True
+        else:
+            best_sequence = []
+            best_dv = float("inf")
+            converged = False
+
+        wall_time_s = time.perf_counter() - start_time
+
+        return MCTSResult(
+            best_sequence=best_sequence,
+            best_dv_total=best_dv,
+            all_paths=valid_paths,
+            n_iterations=self.n_iterations,
+            wall_time_s=wall_time_s,
+            converged=converged,
+        )
 
     def _select(self, node: MCTSNode) -> MCTSNode:
         current = node
@@ -134,7 +200,8 @@ class MCTSPlanner:
                     exploration = self.exploration_constant * math.sqrt(
                         log_parent_visits / child.n_visits
                     )
-                    uct = exploitation + exploration
+                    penalty = self.uncertainty_weight * child.state.uncertainty
+                    uct = exploitation + exploration - penalty
 
                 if uct > best_uct:
                     best_uct = uct
@@ -258,41 +325,33 @@ class MCTSPlanner:
             v_inf_dep = v_dep - v1_body
             dv_cost = departure_delta_v(v_inf_dep, h_park, state.body)
         else:
-            v_inf_in = state.v_helio - v1_body
-            v_inf_out = v_dep - v1_body
+            v_inf_in_vec = state.v_helio - v1_body
+            v_inf_out_vec = v_dep - v1_body
 
-            v_inf_in_mag = float(np.linalg.norm(v_inf_in))
-            v_inf_out_mag = float(np.linalg.norm(v_inf_out))
+            v_inf_in_mag = float(np.linalg.norm(v_inf_in_vec))
+            v_inf_out_mag = float(np.linalg.norm(v_inf_out_vec))
             if v_inf_in_mag <= 1e-6 or v_inf_out_mag <= 1e-6:
                 return None
 
-            cos_theta = float(np.dot(v_inf_in, v_inf_out) / (v_inf_in_mag * v_inf_out_mag))
+            cos_theta = float(np.dot(v_inf_in_vec, v_inf_out_vec) / (v_inf_in_mag * v_inf_out_mag))
             cos_theta = max(-1.0, min(1.0, cos_theta))
-            target_turn_angle_rad = math.acos(cos_theta)
+            target_turn = math.acos(cos_theta)
 
             r_p = self._solve_periapsis_for_turn_angle(
-                v_inf_in_mag, v_inf_out_mag, target_turn_angle_rad, state.body
+                v_inf_in_mag, v_inf_out_mag, target_turn, state.body
             )
 
-            mu = GM[state.body.upper()]
-            R_body = PHYSICAL_RADIUS[CelestialBody[state.body.upper()]]
-            safe_alt = SAFE_FLYBY_ALTITUDE_KM.get(state.body.upper(), 300.0)
-            r_min = R_body + safe_alt
+            from astra.physics.flyby import compute_flyby
+            flyby_result = compute_flyby(
+                v_inf_in=v_inf_in_vec,
+                periapsis_km=r_p,
+                body=state.body,
+                powered_dv_km_s=0.0,
+            )
 
-            e_in_min = 1.0 + r_min * v_inf_in_mag**2 / mu
-            e_out_min = 1.0 + r_min * v_inf_out_mag**2 / mu
-            max_turn = math.asin(1.0 / e_in_min) + math.asin(1.0 / e_out_min)
-
-            v_peri_in = math.sqrt(v_inf_in_mag**2 + 2.0 * mu / r_p)
-            v_peri_out = math.sqrt(v_inf_out_mag**2 + 2.0 * mu / r_p)
-            powered_dv = abs(v_peri_out - v_peri_in)
-
-            deflection_dv = 0.0
-            if target_turn_angle_rad > max_turn:
-                delta_theta = target_turn_angle_rad - max_turn
-                deflection_dv = 2.0 * v_inf_in_mag * math.sin(delta_theta / 2.0)
-
-            dv_cost = powered_dv + deflection_dv
+            dv_cost = flyby_result.dv_helio_km_s
+            if not flyby_result.is_valid:
+                return None
 
         new_dv_spent = state.dv_spent + dv_cost
 
@@ -303,11 +362,46 @@ class MCTSPlanner:
             dv_cap = arrival_delta_v(v_inf_arr, h_cap, next_body)
             new_dv_spent += dv_cap
 
+        # Evaluate surrogate on the candidate transfer
+        predicted_dv = 0.0
+        uncertainty = 0.0
+        if self.surrogate is not None:
+            try:
+                from astra.explainability.window_rationale import compute_synodic_period
+                from astra.neural.features import build_geometric_features
+                
+                syn_days = compute_synodic_period(body_from, body_to)
+                synodic_period_s = syn_days * 86400.0 if syn_days != float("inf") else 0.0
+                
+                feat = build_geometric_features(
+                    dep_epoch=state.epoch,
+                    tof_seconds=tof_seconds,
+                    r1_km=r1,
+                    v1_km_s=v1_body,
+                    r2_km=r2,
+                    dep_epoch_min=self.mission.departure_epoch_start,
+                    dep_epoch_max=self.mission.departure_epoch_end,
+                    tof_min=self.mission.tof_min_seconds,
+                    tof_max=self.mission.tof_max_seconds,
+                    synodic_period_s=synodic_period_s,
+                )
+                pred_obj = self.surrogate.predict(
+                    feat,
+                    v_planet_depart=v1_body,
+                    v_planet_arrive=v2_body,
+                )
+                predicted_dv = pred_obj.prediction
+                uncertainty = pred_obj.uncertainty
+            except Exception:
+                pass
+
         return PhaseState(
             body=next_body,
             epoch=epoch_arr,
             v_helio=v_arr,
             dv_spent=new_dv_spent,
+            predicted_dv=predicted_dv,
+            uncertainty=uncertainty,
         )
 
     def _solve_periapsis_for_turn_angle(
