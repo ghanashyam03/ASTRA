@@ -235,7 +235,40 @@ During performance evaluations, ASTRA computes:
 
 ---
 
-### 7. Trajectory Rationale & Explanations
+### 7. Uncertainty-Aware 6D PINN Surrogate & Guided MCTS
+ASTRA features an advanced physics-informed neural network (PINN) surrogate ensemble
+integrated directly with MCTS planning and active learning loops.
+
+#### 6D Cartesian Velocity Predictor (`LambertPINN`)
+Predicts the 6 components of departure and arrival heliocentric velocity vectors:
+$$[v_{x,d}, v_{y,d}, v_{z,d}, v_{x,a}, v_{y,a}, v_{z,a}]$$
+Linear output layers allow predicted components to correctly range into negative values.
+Training minimizes a combined loss of target MSE and three physical residuals:
+1.  **Vis-Viva constraint** matching departure velocity with the transfer semi-major axis.
+2.  **Specific mechanical energy conservation** between the orbital energy and semi-major axis.
+3.  **Specific angular momentum conservation** ($\mathbf{h}_{\text{dep}} = \mathbf{h}_{\text{arr}}$) along the transfer ellipse.
+
+#### Epistemic Uncertainty & Active Learning (`LambertPINNEnsemble`)
+*   **Deep Ensemble**: Instantiates $N=5$ models with unique initializations to quantify prediction
+    variance and standard deviation (uncertainty) across search regions.
+*   **Active Learning Manager**: Automatically monitors prediction uncertainty. If uncertainty
+    exceeds `uncertainty_threshold`, it queries the physical Izzo Lambert solver, stores the exact
+    solution in the buffer, and triggers network retraining when the buffer size reaches
+    `retrain_every`.
+
+#### Uncertainty-Aware MCTS Search
+The UCT selection formula penalizes nodes with high prediction uncertainty:
+$$UCT = \text{exploitation} + c \sqrt{\frac{\ln N}{n}} - w_{\text{unc}} \sigma$$
+
+#### Multi-Stage Trajectory Validation
+Candidate trajectories are verified against a 3-stage physics check in `validate_trajectory()`:
+-   **Stage 1**: Check surrogate estimates against bounds.
+-   **Stage 2**: Resolve the exact multi-revolution Lambert transfer trajectory.
+-   **Stage 3**: Numerically propagate the exact departure state to verify arrival position error.
+
+---
+
+### 8. Trajectory Rationale & Explanations
 ```python
 from astra.physics import PhysicsKernel
 from astra.dsl import parse_mission_file, compile_mission
@@ -265,7 +298,7 @@ if result.best_trajectory:
         print(f"  - {point}")
 ```
 
-### 8. Trajectory Analytics & Pareto Metrics
+### 9. Trajectory Analytics & Pareto Metrics
 
 ASTRA computes advanced analytics on Pareto-optimal fronts and individual trajectories:
 
