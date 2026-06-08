@@ -1,6 +1,8 @@
 """Neural feasibility classifier for trajectory validation using pure NumPy."""
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from astra.neural.surrogate import NeuralSurrogate, SurrogateMetrics, SurrogateOutput
@@ -129,7 +131,7 @@ class FeasibilityClassifier(NeuralSurrogate):
         self.b1 -= self.lr * db1
 
     # Implementing NeuralSurrogate interface methods
-    def predict(self, features: np.ndarray) -> SurrogateOutput:
+    def predict(self, features: np.ndarray, **kwargs: Any) -> SurrogateOutput:  # noqa: ANN401
         """Predict output for a single feature vector."""
         _, _, pred = self.forward(features.reshape(1, -1))
         p = float(pred[0, 0])

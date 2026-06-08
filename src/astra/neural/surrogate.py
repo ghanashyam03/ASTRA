@@ -4,7 +4,7 @@ Physics validation is MANDATORY — this is enforced at the interface level.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -15,6 +15,19 @@ class SurrogateOutput:
     prediction: float
     uncertainty: float
     requires_physics_validation: bool = True  # ALWAYS True in ASTRA
+
+@dataclass
+class SurrogatePrediction(SurrogateOutput):
+    mean: np.ndarray = field(
+        default_factory=lambda: np.array([], dtype=np.float32)
+    )  # shape (6,)
+    variance: np.ndarray = field(
+        default_factory=lambda: np.array([], dtype=np.float32)
+    )  # shape (6,)
+    std: np.ndarray = field(
+        default_factory=lambda: np.array([], dtype=np.float32)
+    )  # shape (6,)
+    delta_v: float = 0.0
 
 @dataclass
 class SurrogateMetrics:
@@ -54,7 +67,7 @@ class NeuralSurrogate(ABC):
         return True
 
     @abstractmethod
-    def predict(self, features: np.ndarray) -> SurrogateOutput:
+    def predict(self, features: np.ndarray, **kwargs: Any) -> SurrogateOutput:  # noqa: ANN401
         """Predict output for a single feature vector."""
         ...
 

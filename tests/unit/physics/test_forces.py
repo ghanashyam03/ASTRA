@@ -19,7 +19,7 @@ from astra.state.orbital_state import (
 def test_force_model_interface() -> None:
     """Verify that ForceModel is an ABC and requires acceleration method."""
     with pytest.raises(TypeError):
-        ForceModel()  # type: ignore[abstract-class-instantiation]
+        ForceModel()  # type: ignore[abstract]
 
 
 def test_point_mass_gravity() -> None:
@@ -163,7 +163,7 @@ def test_propagator_with_forces() -> None:
     s1_standard = propagate_two_body(s0, dt_seconds=600.0)
 
     # 2. With PointMassGravity force model
-    forces = [PointMassGravity(mu)]
+    forces: list[ForceModel] = [PointMassGravity(mu)]
     s1_custom = propagate_two_body(s0, dt_seconds=600.0, forces=forces)
 
     # Should be identical
