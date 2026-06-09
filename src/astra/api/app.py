@@ -10,7 +10,6 @@ from typing import Any
 from fastapi import FastAPI
 
 from astra.api.middleware.logging import RequestLoggingMiddleware
-from astra.api.routes import health, missions, physics, trajectories
 from astra.data.storage import TrajectoryStore
 from astra.physics.kernel import PhysicsKernel
 
@@ -68,6 +67,9 @@ app = FastAPI(
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
+
+# Import routers at the bottom to avoid circular import issues
+from astra.api.routes import health, missions, physics, trajectories  # noqa: E402
 
 app.include_router(health.router)
 app.include_router(missions.router)
