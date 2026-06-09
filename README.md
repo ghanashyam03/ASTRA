@@ -51,17 +51,27 @@ where `state_vec` is `[x, y, z, vx, vy, vz]` (in `np.float64`) and returns `[ax,
 
 ### 2. Implemented Force Models
 *   **PointMassGravity**: Computes Keplerian central body gravity acceleration:
+
     $$\mathbf{a}_{\text{grav}} = -\frac{\mu \mathbf{r}}{\|\mathbf{r}\|^3}$$
+
 *   **J2Perturbation**: Models the oblateness perturbation of a planet:
+
     $$a_x = \text{factor} \cdot x \left(\frac{5z^2}{\|\mathbf{r}\|^2} - 1\right)$$
+
     $$a_y = \text{factor} \cdot y \left(\frac{5z^2}{\|\mathbf{r}\|^2} - 1\right)$$
+
     $$a_z = \text{factor} \cdot z \left(\frac{5z^2}{\|\mathbf{r}\|^2} - 3\right)$$
+
     where $\text{factor} = \frac{3}{2} J_2 \mu \frac{R_{\text{body}}^2}{\|\mathbf{r}\|^5}$. Equatorial radii ($R_{\text{body}}$) are retrieved from `PHYSICAL_RADIUS`. Constants are provided in `J2_CONSTANTS` (e.g., Earth: $1.08263 \times 10^{-3}$, Mars: $1.96045 \times 10^{-3}$).
 *   **SolarRadiationPressure**: Calculates acceleration from solar photons, assuming the spacecraft is always in sunlight:
-    $$\mathbf{a}_{\text{srp}} = \frac{C_r A_{\text{m2}} P_{\text{solar}}}{\text{mass}_{\text{kg}}} \left(\frac{\text{AU}}{\|\mathbf{r}_{\text{sc}}\| }\right)^2 \mathbf{u}_{\text{sun}} \cdot 10^{-3}$$
+
+    $$\mathbf{a}_{\text{srp}} = \frac{C_r A_{\text{m2}} P_{\text{solar}}}{\text{mass}_{\text{kg}}} \left(\frac{\text{AU}}{\|\mathbf{r}_{\text{sc}}\|}\right)^2 \mathbf{u}_{\text{sun}} \cdot 10^{-3}$$
+
     where $A_{\text{m2}}$ is cross-sectional area, $C_r$ is reflectivity, $\mathbf{u}_{\text{sun}} = -\mathbf{r}_{\text{sc}} / \|\mathbf{r}_{\text{sc}}\|$ is the unit vector pointing toward the Sun, and $P_{\text{solar}} = 4.56 \times 10^{-6}$ N/m² at 1 AU ($1.496 \times 10^8$ km).
 *   **AtmosphericDrag**: Computes drag using an exponential density model:
+
     $$\mathbf{a}_{\text{drag}} = -\frac{1}{2} C_d \frac{A_{\text{m2}}}{\text{mass}_{\text{kg}}} \rho \|\mathbf{v}\| \mathbf{v} \cdot 10^{-3}$$
+
     where $\rho = \rho_0 e^{-\frac{h}{H}}$ (in kg/m³) is scaled to standard physical surface densities (Earth: $1.225$ kg/m³, Mars: $0.020$ kg/m³) from `ATMOSPHERE_CONSTANTS`. Altitudes exceeding the scale-height cutoff (Earth: $1000$ km, Mars: $200$ km) bypass the computation to return zero acceleration.
 
 ### 3. Known Limitations of Current Perturbation Models
@@ -311,7 +321,9 @@ ASTRA computes advanced analytics on Pareto-optimal fronts and individual trajec
 *   **Hypervolume Indicator (HVI)**: Quantifies the area of objective space dominated by the Pareto front relative to a reference point (set at $1.1 \times \max(\text{objectives})$). Larger hypervolume indicates a higher quality front.
 *   **Pareto Spread**: Measures the diversity and coverage of the frontier by computing the average pairwise Euclidean distance of normalized Pareto points.
 *   **Sensitivity Analysis**: Approximates the local derivative of total transfer $\Delta v$ with respect to Time of Flight ($TOF$) and Departure Epoch ($dep$) via central finite differences at the optimal trajectory point:
+
     $$\frac{\partial (\Delta v)}{\partial x} \approx \frac{f(x + \Delta x) - f(x - \Delta x)}{2 \Delta x}$$
+
     Robust bounds gracefully catch infeasible space exceptions, returning status metadata instead of failing.
 
 ---
@@ -432,27 +444,43 @@ ASTRA differentiates between **Heliocentric $\Delta v$** (which represents the d
 
 *   **Heliocentric $\Delta v$**:
     Assumes maneuvers are performed in deep space far from planetary gravity wells.
+
     $$\Delta v_{\text{helio}} = \| \mathbf{v}_{\text{sc,dep}} - \mathbf{v}_{\text{body,dep}} \| + \| \mathbf{v}_{\text{body,arr}} - \mathbf{v}_{\text{sc,arr}} \| = v_{\infty,\text{dep}} + v_{\infty,\text{arr}}$$
+
     where $v_{\infty}$ is the hyperbolic excess speed at departure/arrival.
 
 *   **Patched-Conics (Sphere of Influence) $\Delta v$**:
     Computes precise orbital maneuvers within the planetary gravity wells (Laplace SOI) using circular parking/capture orbits:
     *   **Departure Burn (Trans-Mars Injection, TMI)**: Accelerates from a circular parking orbit at altitude $h_{\text{park}}$:
+
         $$v_{\text{park}} = \sqrt{\frac{\mu_{\text{origin}}}{R_{\text{origin}} + h_{\text{park}}}}$$
+
         $$v_{\text{hyp,dep}} = \sqrt{v_{\infty,\text{dep}}^2 + \frac{2\mu_{\text{origin}}}{R_{\text{origin}} + h_{\text{park}}}}$$
+
         $$\Delta v_{\text{TMI}} = v_{\text{hyp,dep}} - v_{\text{park}}$$
+
     *   **Arrival Burn (Mars Orbit Insertion, MOI)**: Decelerates from a hyperbolic approach to a circular capture orbit at altitude $h_{\text{capture}}$:
+
         $$v_{\text{cap}} = \sqrt{\frac{\mu_{\text{dest}}}{R_{\text{dest}} + h_{\text{capture}}}}$$
+
         $$v_{\text{hyp,arr}} = \sqrt{v_{\infty,\text{arr}}^2 + \frac{2\mu_{\text{dest}}}{R_{\text{dest}} + h_{\text{capture}}}}$$
+
         $$\Delta v_{\text{MOI}} = v_{\text{hyp,arr}} - v_{\text{cap}}$$
+
     *   **Elliptical Capture Support**: If an elliptical capture orbit is specified (using `apoapsis_km` as the radius from the body center), the MOI burn inserts the spacecraft into the capture ellipse at its periapsis. The arrival delta-v is the periapsis deceleration burn only:
+
         $$v_{\text{peri,ellipse}} = \sqrt{\mu_{\text{dest}} \left(\frac{2}{r_{\text{peri}}} - \frac{1}{a_{\text{capture}}}\right)}$$
+
         $$\Delta v_{\text{MOI}} = v_{\text{hyp,arr}} - v_{\text{peri,ellipse}}$$
+
         where $r_{\text{peri}} = R_{\text{dest}} + h_{\text{capture}}$ and $a_{\text{capture}} = (r_{\text{peri}} + r_{\text{apo}}) / 2.0$.
     *   **Circularization Burn Modeling**: If the mission requires circularization from this capture ellipse, the subsequent circularization burn at the capture orbit's apoapsis is calculated as:
+
         $$\Delta v_{\text{circularization}} = v_{\text{circular}} - v_{\text{apo,ellipse}}$$
+
         where $v_{\text{circular}} = \sqrt{\frac{\mu_{\text{dest}}}{r_{\text{apo}}}}$ and $v_{\text{apo,ellipse}} = \sqrt{\mu_{\text{dest}} \left(\frac{2}{r_{\text{apo}}} - \frac{1}{a_{\text{capture}}}\right)}$.
     *   **Total Mission $\Delta v$**:
+
         $$\Delta v_{\text{total}} = \Delta v_{\text{TMI}} + \Delta v_{\text{MOI}}$$
 
 ### 2. The Oberth Effect & Mission Design Implications
@@ -490,10 +518,15 @@ Gravity assists (flybys) enable interplanetary trajectories to gain or lose heli
 
 ### Hyperbolic Deflection Physics
 The hyperbolic turn angle $\delta$ is given by:
+
 $$\sin(\delta/2) = \frac{1}{e}$$
+
 where the eccentricity $e$ of the hyperbolic flyby passage is:
+
 $$e = 1 + \frac{r_p v_{\infty}^2}{\mu}$$
+
 For asymmetric powered flybys, the total turn angle is the sum of the incoming and outgoing hyperbolic asymptote angles:
+
 $$\delta = \arcsin(1/e_{\text{in}}) + \arcsin(1/e_{\text{out}})$$
 
 ---
@@ -507,9 +540,13 @@ ASTRA implements a discrete Monte Carlo Tree Search (MCTS) planner to solve the 
 -   **Actions**: Selecting the next candidate flyby body (e.g., `VENUS`, `EARTH`, `MOON`) and a discrete time of flight (TOF).
 -   **Rollouts**: Randomly selects valid transitions to search for paths reaching the destination body (e.g., `MARS`).
 -   **UCT Selection**: Balances exploration and exploitation using the Upper Confidence Bound for Trees:
+
     $$UCT = \frac{Q(s, a)}{N(s, a)} + C \times \sqrt{\frac{\ln N(s)}{N(s, a)}}$$
+
 -   **Reward Function**: Evaluates feasibility and total $\Delta v$ cost. Feasible sequences that reach the destination within the budget receive a reward of:
+
     $$\text{Reward} = 1.0 - \frac{\Delta v_{\text{total}}}{\Delta v_{\text{budget}}}$$
+
     Infeasible or incomplete sequences receive a reward of $0.0$, ensuring the planner prioritizes successful arrivals.
 
 ---
