@@ -92,9 +92,9 @@ def analyze_constraints(
         if c.type == ConstraintType.MAX_DELTA_V:
             actual = trajectory.delta_v_total
             limit = c.limit
-            res_list = [r for r in report.physical_results if r.constraint_type == "max_delta_v"]
-            if res_list:
-                satisfied = res_list[0].satisfied
+            res_dv_list = [r for r in report.physical_results if r.constraint_type == "max_delta_v"]
+            if res_dv_list:
+                satisfied = res_dv_list[0].satisfied
             else:
                 satisfied = actual <= limit
             margin_pct = (limit - actual) / limit * 100.0 if limit > 0 else 0.0
@@ -103,25 +103,27 @@ def analyze_constraints(
         elif c.type == ConstraintType.MAX_DURATION:
             actual = trajectory.duration_days
             limit = c.limit / 86400.0
-            res_list = [r for r in report.temporal_results if r.constraint_type == "max_duration"]
-            if res_list:
-                satisfied = res_list[0].satisfied
-                actual = res_list[0].actual_days
-                limit = res_list[0].limit_days
+            res_dur_list = [
+                r for r in report.temporal_results if r.constraint_type == "max_duration"
+            ]
+            if res_dur_list:
+                satisfied = res_dur_list[0].satisfied
+                actual = res_dur_list[0].actual_days
+                limit = res_dur_list[0].limit_days
             else:
                 satisfied = actual <= limit
             margin_pct = (limit - actual) / limit * 100.0 if limit > 0 else 0.0
             binding = margin_pct < 5.0 and satisfied
 
         elif c.type == ConstraintType.MIN_PERIAPSIS:
-            res_list = [
+            res_periapsis_list = [
                 r for r in report.physical_results
                 if r.constraint_type == "min_periapsis" and r.body == c.body
             ]
-            if res_list:
-                satisfied = res_list[0].satisfied
-                actual = res_list[0].actual_km
-                limit = res_list[0].limit_km
+            if res_periapsis_list:
+                satisfied = res_periapsis_list[0].satisfied
+                actual = res_periapsis_list[0].actual_km
+                limit = res_periapsis_list[0].limit_km
             else:
                 metadata = trajectory.metadata or {}
                 b_name = c.body if c.body else "EARTH"

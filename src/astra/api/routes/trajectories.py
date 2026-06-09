@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from astra.api.app import get_store
+from astra.api.dependencies import get_store
 
 router = APIRouter(tags=["trajectories"])
 

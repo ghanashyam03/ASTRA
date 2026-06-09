@@ -1,13 +1,13 @@
 {
     "Earth_to_Mars": {
         "standard_mcts": {
-            "runtime_s": 0.002153899986296892,
+            "runtime_s": 0.005115099949762225,
             "delta_v_km_s": 6.40065106843841,
             "nodes_explored": 50,
             "validation_success_rate": 1.0
         },
         "surrogate_guided_mcts": {
-            "runtime_s": 0.006658699945546687,
+            "runtime_s": 0.007902999990619719,
             "delta_v_km_s": 6.40065106843841,
             "nodes_explored": 50,
             "validation_success_rate": 1.0
@@ -16,13 +16,13 @@
     },
     "Earth_to_Venus_to_Mars": {
         "standard_mcts": {
-            "runtime_s": 0.007645700010471046,
+            "runtime_s": 0.03926649992354214,
             "delta_v_km_s": 12.90892290152436,
             "nodes_explored": 50,
             "validation_success_rate": 0.0
         },
         "surrogate_guided_mcts": {
-            "runtime_s": 0.01430339994840324,
+            "runtime_s": 0.04616839997470379,
             "delta_v_km_s": 12.90892290152436,
             "nodes_explored": 50,
             "validation_success_rate": 0.0
@@ -31,13 +31,13 @@
     },
     "Earth_to_Jupiter": {
         "standard_mcts": {
-            "runtime_s": 0.0015257999766618013,
+            "runtime_s": 0.004345800029113889,
             "delta_v_km_s": Infinity,
             "nodes_explored": 50,
             "validation_success_rate": 0.0
         },
         "surrogate_guided_mcts": {
-            "runtime_s": 0.002536299987696111,
+            "runtime_s": 0.010845100041478872,
             "delta_v_km_s": Infinity,
             "nodes_explored": 50,
             "validation_success_rate": 0.0

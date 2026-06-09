@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from astra.api.app import _jobs, get_kernel, get_store
+from astra.api.dependencies import _jobs, get_kernel, get_store
 from astra.api.schemas.requests import OptimizeRequest
 from astra.api.schemas.responses import JobStatusResponse, JobSubmittedResponse
 from astra.dsl.compiler import compile_mission
