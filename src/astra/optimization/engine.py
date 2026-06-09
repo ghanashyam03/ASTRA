@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import optuna
 
+from astra.constraints.engine import evaluate_all_constraints
 from astra.dsl.compiler import CompiledMission
 from astra.dsl.schema import ConstraintType
 from astra.physics.kernel import PhysicsKernel
 from astra.physics.lambert import find_best_transfer
 from astra.state.orbital_state import GM, CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
-from astra.constraints.engine import evaluate_all_constraints
 
 if TYPE_CHECKING:
     from astra.neural.surrogate import NeuralSurrogate

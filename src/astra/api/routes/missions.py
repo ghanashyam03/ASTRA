@@ -7,17 +7,26 @@ Contains:
 - GET /v1/missions/{id}/sensitivity: Run sensitivity analysis on optimized trajectory.
 - GET /v1/missions/{id}/pareto-metrics: Get Pareto front metrics for optimization run.
 """
+from __future__ import annotations
 
 import json
 import logging
 import uuid
 from typing import Any
 
+import numpy as np
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from astra.api.app import get_kernel, get_store, _jobs
+from astra.api.app import _jobs, get_kernel, get_store
 from astra.api.schemas.requests import OptimizeRequest
-from astra.api.schemas.responses import JobSubmittedResponse, JobStatusResponse
+from astra.api.schemas.responses import JobStatusResponse, JobSubmittedResponse
+from astra.dsl.compiler import compile_mission
+from astra.dsl.parser import parse_mission_string
+from astra.explainability.engine import explain
+from astra.optimization.engine import optimize_mission_bayesian
+from astra.state.orbital_state import OrbitalState
+from astra.state.trajectory import Maneuver, Trajectory
+from astra.visualization.sensitivity import analyze_trajectory_sensitivity
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +35,6 @@ router = APIRouter(prefix="", tags=["missions"])
 
 def _run_optimization(job_id: str, mission_yaml: str) -> None:
     """Background task: parse, compile, optimize, save."""
-    from astra.dsl.compiler import compile_mission
-    from astra.dsl.parser import parse_mission_string
-    from astra.explainability.engine import explain
-    from astra.optimization.engine import optimize_mission_bayesian
     store = get_store()
     kernel = get_kernel()
     try:
@@ -134,10 +139,6 @@ async def get_sensitivity(id: str) -> dict[str, Any]:
     if traj_data is None:
         raise HTTPException(status_code=404, detail="Trajectory not found")
 
-    import numpy as np
-    from astra.state.orbital_state import OrbitalState
-    from astra.state.trajectory import Maneuver, Trajectory
-
     t_dict = traj_data["trajectory"]
     maneuvers = [
         Maneuver(
@@ -163,8 +164,6 @@ async def get_sensitivity(id: str) -> dict[str, Any]:
         metadata=t_dict.get("metadata", {}),
     )
 
-    from astra.dsl.compiler import compile_mission
-    from astra.dsl.parser import parse_mission_string
     kernel = get_kernel()
     mission_yaml = job.get("mission_yaml")
     if not mission_yaml:
@@ -175,7 +174,6 @@ async def get_sensitivity(id: str) -> dict[str, Any]:
         kernel.ephemeris if kernel._kernels_loaded else None
     )
 
-    from astra.visualization.sensitivity import analyze_trajectory_sensitivity
     try:
         sens_result = analyze_trajectory_sensitivity(trajectory, mission, kernel)
         return sens_result.to_dict()
@@ -210,10 +208,6 @@ async def get_pareto_metrics(id: str) -> dict[str, Any]:
             status_code=404,
             detail="No feasible trajectories found for this mission"
         )
-
-    import numpy as np
-    from astra.state.orbital_state import OrbitalState
-    from astra.state.trajectory import Maneuver, Trajectory
 
     trajectories = []
     for r in rows:

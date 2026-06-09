@@ -1,13 +1,15 @@
-"""Health routes for the ASTRA API.
+"""
+Health routes for the ASTRA API.
 
 Contains:
 - GET /v1/health: Check application health status and SPICE loading.
 """
+from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from astra.api.schemas.responses import HealthResponse
 from astra.api.app import get_kernel
+from astra.api.schemas.responses import HealthResponse
 from astra.physics.kernel import PhysicsKernel
 
 router = APIRouter()

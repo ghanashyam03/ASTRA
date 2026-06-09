@@ -16,8 +16,8 @@ from astra.constraints.propellant import (
 )
 from astra.constraints.temporal import (
     TemporalConstraintResult,
-    check_max_duration,
     check_launch_window,
+    check_max_duration,
 )
 
 __all__ = [

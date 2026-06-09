@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from astra.state.trajectory import Trajectory
+
 from astra.state.spacecraft import Spacecraft
+from astra.state.trajectory import Trajectory
 
 
 @dataclass

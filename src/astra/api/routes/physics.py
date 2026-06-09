@@ -1,11 +1,14 @@
-"""Physics routes for the ASTRA API.
+"""
+Physics routes for the ASTRA API.
 
 Contains:
 - GET /v1/bodies/{body_name}/state: Get state vectors (position/velocity) of a celestial body.
 - POST /v1/windows/porkchop: Generate transfer delta-v scan (porkchop plot) data.
 """
+from __future__ import annotations
 
 from typing import Any
+
 from fastapi import APIRouter, HTTPException
 
 from astra.api.app import get_kernel
@@ -16,8 +19,12 @@ router = APIRouter(tags=["physics"])
 
 
 @router.get("/v1/bodies/{body_name}/state", response_model=BodyStateResponse)
-async def get_body_state(body_name: str, epoch_j2000: float = 0.0) -> BodyStateResponse:
-    """Retrieve position, velocity, and orbital parameters of a celestial body at a specific epoch."""
+async def get_body_state(
+    body_name: str, epoch_j2000: float = 0.0
+) -> BodyStateResponse:
+    """Retrieve position, velocity, and orbital parameters of a celestial body at a
+    specific epoch.
+    """
     kernel = get_kernel()
     if not kernel._kernels_loaded:
         raise HTTPException(status_code=503, detail="SPICE kernels not loaded")
