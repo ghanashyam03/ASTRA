@@ -31,6 +31,11 @@ ASTRA is a premium, physics-constrained orbital trajectory optimization and miss
 *   **Constraint Compliance Analysis (`analyze_constraints`)**: Identifies margins and boundary-binding limits (within 5% of constraint margins) for total transfer $\Delta v$ and flight duration.
 *   **Pareto Tradeoff Interpretation (`analyze_pareto`)**: Computes optimal slope parameters (e.g. extra $\Delta v$ required per day saved) to interpret duration vs propellant trade-offs quantitatively across Pareto fronts.
 
+### 5. Constraints Evaluation Engine (`astra.constraints`)
+*   **Modular Constraint Checking**: Fully typed evaluation of physical (`check_min_periapsis`, `check_max_delta_v`), propellant (`check_propellant_budget` using the Tsiolkovsky equation), and temporal (`check_max_duration`, `check_launch_window`) limits.
+*   **Unified Violation Reports**: Produces a structured `ConstraintReport` containing categorised lists of `ConstraintViolation` objects based on severity (`hard` vs `soft`).
+*   **Decoupled Search Feasibility**: Integrated within global optimization solvers to enforce bounds while separating propellant budget limits to enable path-finding under under-fueled spacecraft designs.
+
 ---
 
 ## Modular Perturbation Forces Layer (`astra.physics.forces`)
@@ -314,6 +319,11 @@ ASTRA computes advanced analytics on Pareto-optimal fronts and individual trajec
 ## FastAPI API Layer & Trajectory Storage (`astra.api` and `astra.data`)
 
 ASTRA exposes a standard, high-performance FastAPI web application layer to query celestial bodies, calculate porkchop opportunity grids, serialize 3D trajectory rendering-ready data structures, and persist optimization runs.
+
+### Decoupled Router Architecture
+*   **Modular Route Registries**: Endpoints are split into specialized submodule routers under `src/astra/api/routes/` (`health`, `missions`, `trajectories`, `physics`).
+*   **Strict Typed Schemas**: Fully enforces Pydantic v2 schemas for all requests and simple response payloads (e.g. `HealthResponse`, `BodyStateResponse`, `JobStatusResponse`).
+*   **Correlation & Latency Middleware**: Integrates a `RequestLoggingMiddleware` that stamps incoming requests with short correlation IDs, logs execution duration, and injects performance tracking response headers.
 
 ### Persistence & Databases
 *   **DuckDB Trajectory Persistent Storage**:
