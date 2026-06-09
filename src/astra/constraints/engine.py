@@ -3,11 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from astra.dsl.compiler import CompiledMission
-from astra.dsl.schema import ConstraintType
-from astra.state.spacecraft import Spacecraft
-from astra.state.trajectory import Trajectory
-
 from astra.constraints.physical import (
     PhysicalConstraintResult,
     check_max_delta_v,
@@ -22,6 +17,10 @@ from astra.constraints.temporal import (
     check_launch_window,
     check_max_duration,
 )
+from astra.dsl.compiler import CompiledMission
+from astra.dsl.schema import ConstraintType
+from astra.state.spacecraft import Spacecraft
+from astra.state.trajectory import Trajectory
 
 
 @dataclass

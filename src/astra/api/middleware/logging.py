@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from typing import Any
+from collections.abc import Awaitable, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -14,7 +14,7 @@ logger = logging.getLogger("astra.api")
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(
-        self, request: Request, call_next: Any
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         correlation_id = str(uuid.uuid4())[:8]
         start = time.perf_counter()
