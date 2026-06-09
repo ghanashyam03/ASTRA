@@ -40,7 +40,12 @@ def explain(
 ) -> ExplanationTrace:
     """Generate complete ExplanationTrace from trajectory and mission data."""
     dv_decomp = decompose_delta_v(trajectory)
-    constraint_analysis = analyze_constraints(trajectory, mission.constraints)
+    constraint_analysis = analyze_constraints(
+        trajectory,
+        mission.constraints,
+        mission=mission,
+        spacecraft=mission.spacecraft,
+    )
 
     window_rationale = None
     if ephemeris is not None:
