@@ -4,13 +4,15 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 
+from astra.api.middleware.logging import RequestLoggingMiddleware
+from astra.api.routes import health, missions, physics, trajectories
 from astra.data.storage import TrajectoryStore
 from astra.physics.kernel import PhysicsKernel
-from astra.api.middleware.logging import RequestLoggingMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     db_path = getattr(app.state, "db_path", "data/astra.duckdb")
     if db_path != ":memory:":
-        from pathlib import Path
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     _store = TrajectoryStore(db_path)
     
@@ -67,9 +68,6 @@ app = FastAPI(
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
-
-# Import routers at the bottom to avoid circular import issues
-from astra.api.routes import health, missions, trajectories, physics
 
 app.include_router(health.router)
 app.include_router(missions.router)

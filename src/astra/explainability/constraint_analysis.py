@@ -3,8 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from astra.dsl.compiler import CompiledConstraint
+from astra.constraints.engine import evaluate_all_constraints
+from astra.dsl.compiler import CompiledConstraint, CompiledMission
 from astra.dsl.schema import ConstraintType
+from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
+from astra.state.spacecraft import PropulsionSystem, PropulsionType, Spacecraft
 from astra.state.trajectory import Trajectory
 
 
@@ -46,11 +49,6 @@ def analyze_constraints(
     mission: CompiledMission | None = None,
     spacecraft: Spacecraft | None = None,
 ) -> ConstraintAnalysis:
-    from astra.state.spacecraft import Spacecraft, PropulsionSystem, PropulsionType
-    from astra.state.orbital_state import CelestialBody
-    from astra.dsl.compiler import CompiledMission
-    from astra.constraints.engine import evaluate_all_constraints
-
     if spacecraft is None:
         if mission is not None:
             spacecraft = mission.spacecraft
@@ -116,13 +114,15 @@ def analyze_constraints(
             binding = margin_pct < 5.0 and satisfied
 
         elif c.type == ConstraintType.MIN_PERIAPSIS:
-            res_list = [r for r in report.physical_results if r.constraint_type == "min_periapsis" and r.body == c.body]
+            res_list = [
+                r for r in report.physical_results
+                if r.constraint_type == "min_periapsis" and r.body == c.body
+            ]
             if res_list:
                 satisfied = res_list[0].satisfied
                 actual = res_list[0].actual_km
                 limit = res_list[0].limit_km
             else:
-                from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
                 metadata = trajectory.metadata or {}
                 b_name = c.body if c.body else "EARTH"
                 try:

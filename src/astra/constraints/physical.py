@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from astra.state.trajectory import Trajectory
+
 from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
+from astra.state.trajectory import Trajectory
 
 
 @dataclass

@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from astra.state.trajectory import Trajectory
 from astra.dsl.compiler import CompiledMission
-from astra.state.spacecraft import Spacecraft
 from astra.dsl.schema import ConstraintType
+from astra.state.spacecraft import Spacecraft
+from astra.state.trajectory import Trajectory
 
 from astra.constraints.physical import (
     PhysicalConstraintResult,
@@ -19,8 +19,8 @@ from astra.constraints.propellant import (
 )
 from astra.constraints.temporal import (
     TemporalConstraintResult,
-    check_max_duration,
     check_launch_window,
+    check_max_duration,
 )
 
 
@@ -114,7 +114,10 @@ def evaluate_all_constraints(
                 violation = ConstraintViolation(
                     constraint_type="max_delta_v",
                     severity="hard" if c.hard else "soft",
-                    message=f"Delta-V limit of {c.limit} km/s exceeded with {res.actual_km:.3f} km/s",
+                    message=(
+                        f"Delta-V limit of {c.limit} km/s exceeded with "
+                        f"{res.actual_km:.3f} km/s"
+                    ),
                     actual_value=res.actual_km,
                     limit_value=c.limit,
                 )
@@ -131,7 +134,10 @@ def evaluate_all_constraints(
                 violation = ConstraintViolation(
                     constraint_type="max_duration",
                     severity="hard" if c.hard else "soft",
-                    message=f"Duration limit of {limit_days:.2f} days exceeded with {res.actual_days:.2f} days",
+                    message=(
+                        f"Duration limit of {limit_days:.2f} days exceeded with "
+                        f"{res.actual_days:.2f} days"
+                    ),
                     actual_value=res.actual_days,
                     limit_value=limit_days,
                 )
@@ -147,7 +153,10 @@ def evaluate_all_constraints(
                 violation = ConstraintViolation(
                     constraint_type="min_periapsis",
                     severity="hard" if c.hard else "soft",
-                    message=f"Periapsis for {c.body or 'body'} is {res.actual_km:.1f} km, which is below min {c.limit:.1f} km",
+                    message=(
+                        f"Periapsis for {c.body or 'body'} is {res.actual_km:.1f} km, "
+                        f"which is below min {c.limit:.1f} km"
+                    ),
                     actual_value=res.actual_km,
                     limit_value=c.limit,
                     body=c.body,
@@ -164,7 +173,10 @@ def evaluate_all_constraints(
             ConstraintViolation(
                 constraint_type="propellant_budget",
                 severity="hard",
-                message=f"Required delta-V {prop_result.required_dv_km_s:.3f} km/s exceeds available budget {prop_result.available_dv_km_s:.3f} km/s",
+                message=(
+                    f"Required delta-V {prop_result.required_dv_km_s:.3f} km/s "
+                    f"exceeds available budget {prop_result.available_dv_km_s:.3f} km/s"
+                ),
                 actual_value=prop_result.required_dv_km_s,
                 limit_value=prop_result.available_dv_km_s,
             )
@@ -182,7 +194,10 @@ def evaluate_all_constraints(
             ConstraintViolation(
                 constraint_type="launch_window",
                 severity="soft",
-                message=f"Departure epoch {trajectory.departure_epoch} is outside the launch window",
+                message=(
+                    f"Departure epoch {trajectory.departure_epoch} is outside "
+                    f"the launch window"
+                ),
                 actual_value=trajectory.departure_epoch,
                 limit_value=mission.departure_epoch_start,
             )
