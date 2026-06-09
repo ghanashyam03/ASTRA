@@ -15,6 +15,7 @@ from astra.physics.kernel import PhysicsKernel
 from astra.physics.lambert import find_best_transfer
 from astra.state.orbital_state import GM, CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
+from astra.constraints.engine import evaluate_all_constraints
 
 if TYPE_CHECKING:
     from astra.neural.surrogate import NeuralSurrogate
@@ -212,6 +213,13 @@ def _get_hard_limits(mission: CompiledMission) -> tuple[float, float]:
             max_days = min(max_days, c.limit / 86400.0)
     return max_dv, max_days
 
+
+def _is_feasible(traj: Trajectory | None, mission: CompiledMission) -> bool:
+    if traj is None:
+        return False
+    report = evaluate_all_constraints(traj, mission, mission.spacecraft)
+    return all(v.constraint_type == "propellant_budget" for v in report.hard_violations)
+
 def optimize_mission_bayesian(
     mission: CompiledMission,
     kernel: PhysicsKernel,
@@ -262,7 +270,7 @@ def optimize_mission_bayesian(
         days = traj.duration_days
 
         # Apply hard constraint penalties
-        if dv > max_dv or days > max_days:
+        if not _is_feasible(traj, mission):
             return 99.0 + dv, 999.0 + days
 
         return dv, days
@@ -301,13 +309,13 @@ def optimize_mission_bayesian(
                     use_soi_patching=True,
                     capture_apoapsis_km=mission.capture_apoapsis_km,
                 )
-                if traj and traj.is_feasible(max_dv, max_days):
+                if traj and _is_feasible(traj, mission):
                     pareto.append(traj)
             except Exception:
                 pass
 
     # Pick best by primary objective (minimize delta_v)
-    feasible = [t for t in all_trajs if t.is_feasible(max_dv, max_days)]
+    feasible = [t for t in all_trajs if _is_feasible(t, mission)]
     best = min(feasible, key=lambda t: t.delta_v_total, default=None)
     if best is None and pareto:
         best = min(pareto, key=lambda t: t.delta_v_total)
@@ -438,7 +446,7 @@ def optimize_mission_neural_accelerated(
 
         dv = traj.delta_v_total
         days = traj.duration_days
-        if dv > max_dv or days > max_days:
+        if not _is_feasible(traj, mission):
             return 99.0 + dv, 999.0 + days
         return dv, days
 
@@ -470,12 +478,12 @@ def optimize_mission_neural_accelerated(
                     use_soi_patching=True,
                     capture_apoapsis_km=mission.capture_apoapsis_km,
                 )
-                if traj and traj.is_feasible(max_dv, max_days):
+                if traj and _is_feasible(traj, mission):
                     pareto.append(traj)
             except Exception:
                 pass
 
-    feasible = [t for t in all_trajs if t.is_feasible(max_dv, max_days)]
+    feasible = [t for t in all_trajs if _is_feasible(t, mission)]
     best = min(feasible, key=lambda t: t.delta_v_total, default=None)
     if best is None and pareto:
         best = min(pareto, key=lambda t: t.delta_v_total)
@@ -578,7 +586,7 @@ def optimize_mission_hybrid(
                 )
                 if t_new is None:
                     return 99.0
-                if not t_new.is_feasible(max_dv, max_days):
+                if not _is_feasible(t_new, mission):
                     return 99.0 + t_new.delta_v_total
                 return t_new.delta_v_total
 
@@ -606,7 +614,7 @@ def optimize_mission_hybrid(
                         use_soi_patching=True,
                         capture_apoapsis_km=mission.capture_apoapsis_km,
                     )
-                    if t_new and t_new.is_feasible(max_dv, max_days):
+                    if t_new and _is_feasible(t_new, mission):
                         all_refined.append(t_new)
                         if (best_refined is None or
                                 t_new.delta_v_total < best_refined.delta_v_total):
@@ -636,7 +644,7 @@ def optimize_mission_hybrid(
         pareto_front=result_p1.pareto_front,
         all_trajectories=all_refined,
         n_evaluations=result_p1.n_evaluations + total_refinement_evals,
-        n_feasible=len([t for t in all_refined if t.is_feasible(max_dv, max_days)]),
+        n_feasible=len([t for t in all_refined if _is_feasible(t, mission)]),
         wall_time_s=t.time() - start,
         converged=best_refined is not None,
         phase1_best_dv=phase1_best_dv,
