@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from astra.api.app import get_kernel
+from astra.api.dependencies import get_kernel
 from astra.api.schemas.responses import HealthResponse
 from astra.physics.kernel import PhysicsKernel
 

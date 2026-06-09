@@ -106,18 +106,18 @@ def evaluate_all_constraints(
 
     # Evaluate compiled constraints
     for c in mission.constraints:
-        if c.type == ConstraintType.MAX_DELTA_V or c.type == "max_delta_v":
-            res = check_max_delta_v(trajectory, c.limit)
-            physical_results.append(res)
-            if not res.satisfied:
+        if c.type == ConstraintType.MAX_DELTA_V:
+            res_dv = check_max_delta_v(trajectory, c.limit)
+            physical_results.append(res_dv)
+            if not res_dv.satisfied:
                 violation = ConstraintViolation(
                     constraint_type="max_delta_v",
                     severity="hard" if c.hard else "soft",
                     message=(
                         f"Delta-V limit of {c.limit} km/s exceeded with "
-                        f"{res.actual_km:.3f} km/s"
+                        f"{res_dv.actual_km:.3f} km/s"
                     ),
-                    actual_value=res.actual_km,
+                    actual_value=res_dv.actual_km,
                     limit_value=c.limit,
                 )
                 if c.hard:
@@ -125,19 +125,19 @@ def evaluate_all_constraints(
                 else:
                     soft_violations.append(violation)
 
-        elif c.type == ConstraintType.MAX_DURATION or c.type == "max_duration":
+        elif c.type == ConstraintType.MAX_DURATION:
             limit_days = c.limit / 86400.0
-            res = check_max_duration(trajectory, limit_days)
-            temporal_results.append(res)
-            if not res.satisfied:
+            res_dur = check_max_duration(trajectory, limit_days)
+            temporal_results.append(res_dur)
+            if not res_dur.satisfied:
                 violation = ConstraintViolation(
                     constraint_type="max_duration",
                     severity="hard" if c.hard else "soft",
                     message=(
                         f"Duration limit of {limit_days:.2f} days exceeded with "
-                        f"{res.actual_days:.2f} days"
+                        f"{res_dur.actual_days:.2f} days"
                     ),
-                    actual_value=res.actual_days,
+                    actual_value=res_dur.actual_days,
                     limit_value=limit_days,
                 )
                 if c.hard:
@@ -145,18 +145,18 @@ def evaluate_all_constraints(
                 else:
                     soft_violations.append(violation)
 
-        elif c.type == ConstraintType.MIN_PERIAPSIS or c.type == "min_periapsis":
-            res = check_min_periapsis(trajectory, c.limit, c.body)
-            physical_results.append(res)
-            if not res.satisfied:
+        elif c.type == ConstraintType.MIN_PERIAPSIS:
+            res_periapsis = check_min_periapsis(trajectory, c.limit, c.body)
+            physical_results.append(res_periapsis)
+            if not res_periapsis.satisfied:
                 violation = ConstraintViolation(
                     constraint_type="min_periapsis",
                     severity="hard" if c.hard else "soft",
                     message=(
-                        f"Periapsis for {c.body or 'body'} is {res.actual_km:.1f} km, "
+                        f"Periapsis for {c.body or 'body'} is {res_periapsis.actual_km:.1f} km, "
                         f"which is below min {c.limit:.1f} km"
                     ),
-                    actual_value=res.actual_km,
+                    actual_value=res_periapsis.actual_km,
                     limit_value=c.limit,
                     body=c.body,
                 )

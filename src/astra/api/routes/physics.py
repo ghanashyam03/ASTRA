@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from astra.api.app import get_kernel
+from astra.api.dependencies import get_kernel
 from astra.api.schemas.requests import PorkchopRequest
 from astra.api.schemas.responses import BodyStateResponse
 
