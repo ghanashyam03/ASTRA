@@ -180,5 +180,39 @@ class TrajectoryStore:
             "best_tof_days": round(float(pts[:, 1].min()), 2),
         }
 
+    def get_pareto_metrics(self, mission_id: str) -> dict[str, Any]:
+        """Compute Pareto quality metrics for all stored trajectories of a mission."""
+        rows = self.conn.execute(
+            """SELECT delta_v_total_km_s, duration_days FROM trajectories
+               WHERE mission_id = ? AND feasible = true
+               ORDER BY delta_v_total_km_s ASC""",
+            [mission_id],
+        ).fetchall()
+        if len(rows) < 2:
+            return {"error": "insufficient_data", "n_trajectories": len(rows)}
+        pts = np.array(rows, dtype=float)
+        ref = pts.max(axis=0) * 1.1
+        return {
+            "mission_id": mission_id,
+            "n_trajectories": len(rows),
+            "hypervolume_indicator": round(hypervolume_indicator_2d(pts, ref), 6),
+            "spread": round(pareto_spread(pts), 6),
+            "best_dv_km_s": round(float(pts[:, 0].min()), 4),
+            "best_tof_days": round(float(pts[:, 1].min()), 2),
+            "worst_dv_km_s": round(float(pts[:, 0].max()), 4),
+        }
+
+    def get_best_by_mission(self) -> list[dict[str, Any]]:
+        """Return the single best (lowest Δv) trajectory per mission_id."""
+        rows = self.conn.execute(
+            """SELECT DISTINCT ON (mission_id) mission_id, id,
+                   delta_v_total_km_s, duration_days, created_at
+               FROM trajectories
+               WHERE feasible = true
+               ORDER BY mission_id, delta_v_total_km_s ASC"""
+        ).fetchall()
+        keys = ["mission_id", "trajectory_id", "delta_v_km_s", "duration_days", "created_at"]
+        return [dict(zip(keys, r)) for r in rows]
+
     def close(self) -> None:
         self.conn.close()
