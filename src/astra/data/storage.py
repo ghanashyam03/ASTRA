@@ -182,8 +182,6 @@ class TrajectoryStore:
 
     def get_pareto_metrics(self, mission_id: str) -> dict[str, Any]:
         """Compute Pareto quality metrics for all stored trajectories of a mission."""
-        import numpy as np
-        from astra.optimization.pareto import hypervolume_indicator_2d, pareto_spread
         rows = self.conn.execute(
             """SELECT delta_v_total_km_s, duration_days FROM trajectories
                WHERE mission_id = ? AND feasible = true

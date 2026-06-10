@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from astra.optimization.pareto import ParetoQualityMetrics, compute_pareto_quality
 from astra.state.trajectory import Trajectory
+
+if TYPE_CHECKING:
+    from astra.physics.ephemeris import EphemerisEngine
 
 
 @dataclass
@@ -35,7 +38,7 @@ class ParetoPlotData:
 
 def build_pareto_plot(
     trajectories: list[Trajectory],
-    ephemeris: Any = None,
+    ephemeris: EphemerisEngine | None = None,
 ) -> ParetoPlotData:
     """Build Plotly-ready Pareto scatter data with quality metrics.
     If ephemeris provided, converts departure epochs to ISO date strings."""

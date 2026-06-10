@@ -6,6 +6,8 @@ Contains:
 """
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from astra.api.dependencies import get_kernel
@@ -29,9 +31,7 @@ async def health(kernel: PhysicsKernel = Depends(get_kernel)) -> HealthResponse:
 @router.get("/v1/metrics")
 async def metrics() -> dict[str, Any]:
     """Return runtime metrics: uptime, job counts, cache hit rate, storage stats."""
-    import time
-    from typing import Any
-    from astra.api.app import get_kernel, get_store, _jobs
+    from astra.api.app import _jobs, get_kernel, get_store
     
     result: dict[str, Any] = {
         "service": "ASTRA",
@@ -50,12 +50,16 @@ async def metrics() -> dict[str, Any]:
     
     try:
         store = get_store()
-        traj_count = store.conn.execute(
-            "SELECT COUNT(*) FROM trajectories"
-        ).fetchone()[0]
-        run_count = store.conn.execute(
-            "SELECT COUNT(*) FROM optimization_runs"
-        ).fetchone()[0]
+        traj_row = store.conn.execute(
+            "SELECT COUNT(*)"
+            " FROM trajectories"
+        ).fetchone()
+        traj_count = traj_row[0] if traj_row else 0
+        run_row = store.conn.execute(
+            "SELECT COUNT(*)"
+            " FROM optimization_runs"
+        ).fetchone()
+        run_count = run_row[0] if run_row else 0
         result["storage"] = {
             "trajectories": traj_count,
             "optimization_runs": run_count,

@@ -9,7 +9,6 @@ Contains:
 """
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from typing import Any
@@ -24,9 +23,9 @@ from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_string
 from astra.explainability.engine import explain
 from astra.optimization.engine import optimize_mission_bayesian
-from astra.state.orbital_state import OrbitalState
+from astra.state.orbital_state import CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
-from astra.visualization.sensitivity import analyze_trajectory_sensitivity
+from astra.visualization.sensitivity import analyze_sensitivity
 
 logger = logging.getLogger(__name__)
 
@@ -131,13 +130,6 @@ async def mission_sensitivity(job_id: str) -> dict[str, Any]:
     if not best_tid:
         raise HTTPException(status_code=404, detail="No trajectory stored for this job")
     
-    from astra.dsl.parser import parse_mission_string
-    from astra.dsl.compiler import compile_mission
-    from astra.visualization.sensitivity import analyze_sensitivity
-    from astra.state.trajectory import Trajectory, Maneuver
-    from astra.state.orbital_state import OrbitalState, CelestialBody, ReferenceFrame
-    import numpy as np
-    
     kernel = get_kernel()
     store = get_store()
     row = store.get_trajectory(best_tid)
@@ -161,7 +153,6 @@ async def mission_sensitivity(job_id: str) -> dict[str, Any]:
         OrbitalState(epoch=arr_epoch, position=np.zeros(3), velocity=np.zeros(3),
                      central_body=CelestialBody.SUN),
     ]
-    from astra.state.trajectory import Trajectory
     traj = Trajectory(states=states, maneuvers=maneuvers, metadata=td.get("metadata", {}))
     
     mission_yaml = job.get("mission_yaml", "")
