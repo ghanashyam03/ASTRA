@@ -1,6 +1,9 @@
-"""Trajectory sensitivity analysis via finite-difference perturbation.
-Answers: 'How much does Δv change if TOF changes by ±1 day?'
+"""Trajectory sensitivity analysis via central finite differences / finite-difference perturbation.
+Answers: 'If TOF changes by ±1 day, how much does total Δv change?'
+All physics calls go through the existing evaluate_transfer() function.
+No new physics here — only perturbation and finite differences.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -12,6 +15,153 @@ if TYPE_CHECKING:
     from astra.physics.kernel import PhysicsKernel
     from astra.state.trajectory import Trajectory
 
+# --- NEW CLASSES & FUNCTIONS (PART B) ---
+
+@dataclass
+class SensitivityPoint:
+    parameter_name: str
+    baseline_value: float
+    perturbation_step: float
+    units: str
+    baseline_dv: float
+    dv_plus: float         # f(x + h)
+    dv_minus: float        # f(x - h)
+    gradient: float        # central difference: (f_plus - f_minus) / (2*h)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "parameter": self.parameter_name,
+            "units": self.units,
+            "baseline": round(self.baseline_value, 6),
+            "perturbation_step": round(self.perturbation_step, 6),
+            "baseline_dv_km_s": round(self.baseline_dv, 6),
+            "dv_plus": round(self.dv_plus, 6),
+            "dv_minus": round(self.dv_minus, 6),
+            "gradient_km_s_per_unit": round(self.gradient, 8),
+        }
+
+@dataclass
+class TrajectorySensitivity:
+    mission_id: str
+    points: list[SensitivityPoint]
+    wall_time_s: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mission_id": self.mission_id,
+            "wall_time_s": round(self.wall_time_s, 3),
+            "sensitivities": [p.to_dict() for p in self.points],
+        }
+
+def central_difference(
+    f: Callable[[float], float],
+    x0: float,
+    h: float,
+) -> tuple[float, float, float]:
+    """Compute f(x0), f(x0+h), f(x0-h). Returns (f0, f_plus, f_minus)."""
+    return f(x0), f(x0 + h), f(x0 - h)
+
+def analyze_sensitivity(
+    trajectory: Any,   # Trajectory
+    mission: Any,      # CompiledMission
+    kernel: Any,       # PhysicsKernel
+    dep_step_days: float = 1.0,
+    tof_step_days: float = 1.0,
+) -> TrajectorySensitivity:
+    """Compute sensitivity of optimal trajectory Δv with respect to:
+    1. Departure epoch (±dep_step_days)
+    2. Time of flight (±tof_step_days)
+    
+    Uses central finite differences at the optimal point. All evaluations
+    call evaluate_transfer() with full SOI patching — no physics shortcuts.
+    Returns 99.0 for infeasible perturbations (same convention as optimizer).
+    """
+    import time as t_mod
+
+    from astra.optimization.engine import evaluate_transfer
+    from astra.state.orbital_state import GM
+
+    start = t_mod.time()
+    mu_sun = GM["SUN"]
+    dep0 = float(trajectory.departure_epoch)
+    tof0 = float(trajectory.duration_seconds)
+
+    def dv_at_dep(dep: float) -> float:
+        arr = dep + tof0
+        try:
+            r1 = kernel.get_body_state(mission.origin_body, dep).position
+            v1 = kernel.get_body_state(mission.origin_body, dep).velocity
+            r2 = kernel.get_body_state(mission.destination_body, arr).position
+            v2 = kernel.get_body_state(mission.destination_body, arr).velocity
+            tr = evaluate_transfer(
+                r1, v1, r2, v2, dep, tof0, mu_sun,
+                origin_body=mission.origin_body.name,
+                destination_body=mission.destination_body.name,
+                parking_altitude_km=mission.parking_altitude_km,
+                capture_altitude_km=mission.capture_altitude_km,
+            )
+            return tr.delta_v_total if tr is not None else 99.0
+        except Exception:
+            return 99.0
+
+    def dv_at_tof(tof: float) -> float:
+        arr = dep0 + tof
+        try:
+            r1 = kernel.get_body_state(mission.origin_body, dep0).position
+            v1 = kernel.get_body_state(mission.origin_body, dep0).velocity
+            r2 = kernel.get_body_state(mission.destination_body, arr).position
+            v2 = kernel.get_body_state(mission.destination_body, arr).velocity
+            tr = evaluate_transfer(
+                r1, v1, r2, v2, dep0, tof, mu_sun,
+                origin_body=mission.origin_body.name,
+                destination_body=mission.destination_body.name,
+                parking_altitude_km=mission.parking_altitude_km,
+                capture_altitude_km=mission.capture_altitude_km,
+            )
+            return tr.delta_v_total if tr is not None else 99.0
+        except Exception:
+            return 99.0
+
+    dep_step_s = dep_step_days * 86400.0
+    tof_step_s = tof_step_days * 86400.0
+
+    f0_dep, fp_dep, fm_dep = central_difference(dv_at_dep, dep0, dep_step_s)
+    grad_dep = (fp_dep - fm_dep) / (2.0 * dep_step_s / 86400.0)
+
+    f0_tof, fp_tof, fm_tof = central_difference(dv_at_tof, tof0, tof_step_s)
+    grad_tof = (fp_tof - fm_tof) / (2.0 * tof_step_s / 86400.0)
+
+    points = [
+        SensitivityPoint(
+            parameter_name="departure_epoch",
+            baseline_value=dep0,
+            perturbation_step=dep_step_s,
+            units="km/s per day of departure shift",
+            baseline_dv=f0_dep,
+            dv_plus=fp_dep,
+            dv_minus=fm_dep,
+            gradient=grad_dep,
+        ),
+        SensitivityPoint(
+            parameter_name="time_of_flight",
+            baseline_value=tof0,
+            perturbation_step=tof_step_s,
+            units="km/s per day of TOF change",
+            baseline_dv=f0_tof,
+            dv_plus=fp_tof,
+            dv_minus=fm_tof,
+            gradient=grad_tof,
+        ),
+    ]
+
+    return TrajectorySensitivity(
+        mission_id=mission.mission_id,
+        points=points,
+        wall_time_s=t_mod.time() - start,
+    )
+
+
+# --- DEPRECATED/OLD CLASSES & FUNCTIONS FOR BACKWARD COMPATIBILITY ---
 
 @dataclass
 class SensitivityResult:
@@ -38,7 +188,6 @@ class SensitivityResult:
             "metadata": self.metadata,
         }
 
-
 @dataclass
 class TrajectoryParameterSensitivity:
     """Complete sensitivity analysis for a trajectory."""
@@ -50,7 +199,6 @@ class TrajectoryParameterSensitivity:
             "mission_id": self.mission_id,
             "sensitivities": [s.to_dict() for s in self.sensitivities],
         }
-
 
 def compute_sensitivity(
     objective_fn: Callable[[float], float],
@@ -109,7 +257,6 @@ def compute_sensitivity(
         sensitivity_label=label,
         metadata=meta,
     )
-
 
 def analyze_trajectory_sensitivity(
     trajectory: Trajectory,
