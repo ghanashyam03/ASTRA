@@ -62,9 +62,9 @@ def central_difference(
     return f(x0), f(x0 + h), f(x0 - h)
 
 def analyze_sensitivity(
-    trajectory: Any,   # Trajectory
-    mission: Any,      # CompiledMission
-    kernel: Any,       # PhysicsKernel
+    trajectory: Trajectory,
+    mission: CompiledMission,
+    kernel: PhysicsKernel,
     dep_step_days: float = 1.0,
     tof_step_days: float = 1.0,
 ) -> TrajectorySensitivity:
