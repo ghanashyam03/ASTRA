@@ -19,6 +19,7 @@ from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody
 
 if TYPE_CHECKING:
     from astra.neural.surrogate import NeuralSurrogate
+from astra.neural.gnn import NODE_INDEX, SolarSystemGNN, build_node_features
 
 
 @dataclass
@@ -92,6 +93,7 @@ class MCTSPlanner:
         flyby_candidates: list[str] | None = None,
         surrogate: NeuralSurrogate | None = None,
         uncertainty_weight: float = 0.0,
+        gnn: SolarSystemGNN | None = None,
     ) -> None:
         self.mission = mission
         self.kernel = kernel
@@ -104,6 +106,9 @@ class MCTSPlanner:
         self.rng = np.random.default_rng(seed)
         self.surrogate = surrogate
         self.uncertainty_weight = uncertainty_weight
+        self.gnn = gnn
+        self._node_features = build_node_features() if gnn is not None else None
+
 
         self.origin_body = mission.origin_body.name.upper()
         self.destination_body = mission.destination_body.name.upper()
@@ -234,7 +239,49 @@ class MCTSPlanner:
             if not actions:
                 break
 
-            self.rng.shuffle(actions)
+            if (self.gnn is not None
+                    and self.gnn.is_trained()
+                    and current_state.body in NODE_INDEX):
+                # Score candidates using GNN policy
+                candidate_bodies = [a[0] for a in actions]
+                edge_dict = {}
+                try:
+                    from astra.state.orbital_state import CelestialBody
+                    cb_curr = CelestialBody[current_state.body]
+                    origin_state = self.kernel.get_body_state(cb_curr, current_state.epoch)
+                    r1 = origin_state.position
+                    v1 = origin_state.velocity
+                    has_origin = True
+                except Exception:
+                    has_origin = False
+
+                if has_origin:
+                    for a_body, a_tof in actions:
+                        if a_body not in NODE_INDEX:
+                            continue
+                        try:
+                            from astra.state.orbital_state import CelestialBody
+                            cb_next = CelestialBody[a_body]
+                            r2 = self.kernel.get_body_state(
+                                cb_next, current_state.epoch + a_tof).position
+                            from astra.neural.gnn import build_edge_features
+                            src_i = NODE_INDEX[current_state.body]
+                            dst_i = NODE_INDEX[a_body]
+                            edge_dict[(src_i, dst_i)] = build_edge_features(
+                                current_state.body, a_body, r1, r2, v1, a_tof
+                            )
+                        except Exception:
+                            pass
+                assert self._node_features is not None
+                scores = self.gnn.predict_scores(
+                    current_state.body, candidate_bodies,
+                    self._node_features, edge_dict
+                )
+                sorted_indices = np.argsort(-scores)
+                actions = [actions[i] for i in sorted_indices]
+            else:
+                self.rng.shuffle(actions)  # fallback: unchanged behavior
+
             next_state = None
             for action in actions:
                 next_state = self._apply_action(current_state, action)

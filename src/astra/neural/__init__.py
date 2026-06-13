@@ -5,6 +5,14 @@ from astra.neural.surrogate import (
     SurrogateOutput,
     SurrogatePrediction,
 )
+from astra.neural.gnn import (
+    SolarSystemGNN,
+    build_node_features,
+    build_edge_features,
+    PLANET_NODES,
+    NODE_INDEX,
+    N_NODES,
+)
 
 __all__ = [
     "LambertPINN",
@@ -14,4 +22,11 @@ __all__ = [
     "NeuralSurrogate",
     "SurrogateOutput",
     "SurrogateMetrics",
+    "SolarSystemGNN",
+    "build_node_features",
+    "build_edge_features",
+    "PLANET_NODES",
+    "NODE_INDEX",
+    "N_NODES",
 ]
+
