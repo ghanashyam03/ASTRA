@@ -807,4 +807,190 @@ def optimize_mission_mcts(
     )
 
 
+def optimize_mission_with_flyby(
+    mission: CompiledMission,
+    kernel: PhysicsKernel,
+    n_trials: int = 2000,
+    time_limit: float = 180.0,
+    seed: int = 42,
+) -> OptimizationResult:
+    """Optimize a multi-body flyby trajectory with continuous periapsis altitude.
+    
+    Uses Optuna Bayesian optimization over:
+      - departure_epoch: J2000 seconds
+      - tof_leg1_days: TOF to flyby body [days]
+      - periapsis_alt_km: flyby periapsis altitude above surface [km]
+      - tof_leg2_days: TOF from flyby to destination [days]
+    
+    The flyby Δv is computed using compute_flyby() from physics/flyby.py.
+    SOI patching is applied at origin and destination.
+    All Lambert solutions are validated by find_best_transfer().
+    
+    If mission.flyby_sequence is empty, falls back to optimize_mission_hybrid().
+    """
+    from astra.physics.flyby import compute_flyby
+    from astra.state.orbital_state import PHYSICAL_RADIUS
+
+    if not mission.flyby_sequence:
+        logger.info("No flyby sequence — using hybrid optimizer")
+        return optimize_mission_hybrid(mission, kernel, time_limit=time_limit, seed=seed)
+
+    flyby_spec = mission.flyby_sequence[0]  # support single flyby first
+    flyby_body_name = flyby_spec["body"]
+    min_alt = flyby_spec["min_alt_km"]
+    max_alt = flyby_spec["max_alt_km"]
+    powered = flyby_spec["powered"]
+
+    try:
+        flyby_body = CelestialBody[flyby_body_name]
+    except KeyError:
+        raise ValueError(f"Unknown flyby body: {flyby_body_name}")
+
+    mu_sun = GM["SUN"]
+    max_dv, max_days = _get_hard_limits(mission)
+    start_time = time.time()
+    all_trajs: list[Trajectory] = []
+
+    def objective(trial: optuna.Trial) -> tuple[float, float]:
+        dep = trial.suggest_float("departure_epoch",
+                                  mission.departure_epoch_start,
+                                  mission.departure_epoch_end)
+        tof1_days = trial.suggest_float("tof_leg1_days", 30.0, 300.0)
+        periapsis_alt = trial.suggest_float("periapsis_alt_km", min_alt, max_alt)
+        tof2_days = trial.suggest_float("tof_leg2_days", 30.0, 400.0)
+
+        tof1_s = tof1_days * 86400.0
+        tof2_s = tof2_days * 86400.0
+        flyby_epoch = dep + tof1_s
+        arr_epoch = flyby_epoch + tof2_s
+
+        if arr_epoch - dep > max_days * 86400.0:
+            return 99.0, 999.0
+
+        try:
+            # Leg 1: origin → flyby body
+            r_orig = kernel.get_body_state(mission.origin_body, dep).position
+            v_orig = kernel.get_body_state(mission.origin_body, dep).velocity
+            r_fly = kernel.get_body_state(flyby_body, flyby_epoch).position
+            v_fly = kernel.get_body_state(flyby_body, flyby_epoch).velocity
+            # Leg 2: flyby body → destination
+            r_dest = kernel.get_body_state(mission.destination_body, arr_epoch).position
+            v_dest = kernel.get_body_state(mission.destination_body, arr_epoch).velocity
+        except Exception:
+            return 99.0, 999.0
+
+        # Leg 1 Lambert
+        try:
+            sol1 = find_best_transfer(r_orig, v_orig, r_fly, v_fly,
+                                      tof1_s, mu_sun, max_revs=2)
+        except Exception:
+            return 99.0, 999.0
+
+        # Leg 2 Lambert
+        try:
+            sol2 = find_best_transfer(r_fly, v_fly, r_dest, v_dest,
+                                      tof2_s, mu_sun, max_revs=2)
+        except Exception:
+            return 99.0, 999.0
+
+        # Flyby physics at intermediate body
+        # incoming v_inf at flyby = Lambert arrival velocity - body velocity
+        v_sc_arr_fly = sol1.v2
+        v_inf_in_vec = v_sc_arr_fly - v_fly
+
+        R_fly = PHYSICAL_RADIUS.get(flyby_body, 6371.0)
+        periapsis_km = R_fly + periapsis_alt
+
+        flyby_result = compute_flyby(
+            v_inf_in=v_inf_in_vec,
+            periapsis_km=periapsis_km,
+            body=flyby_body_name,
+            powered_dv_km_s=0.0,
+        )
+
+        if not flyby_result.is_valid:
+            return 99.0, 999.0
+
+        # Departure burn (from parking orbit at origin)
+        from astra.physics.maneuvers import arrival_delta_v, departure_delta_v
+        v_inf_dep = sol1.v1 - v_orig
+        dv_dep = departure_delta_v(v_inf_dep, mission.parking_altitude_km,
+                                   mission.origin_body.value)
+
+        # Flyby Δv (powered or unpowered)
+        dv_fly = flyby_result.powered_dv_km_s  # 0 for unpowered
+
+        # Capture burn at destination
+        # sol2.v1 is the departure from flyby in heliocentric frame
+        v_sc_dep_fly = sol2.v1
+        # sol2.v2 is arrival at destination
+        v_sc_arr_dest = sol2.v2
+        v_inf_arr = v_dest - v_sc_arr_dest
+        dv_cap = arrival_delta_v(v_inf_arr, mission.capture_altitude_km,
+                                 mission.destination_body.value)
+
+        dv_total = dv_dep + dv_fly + dv_cap
+        total_days = (arr_epoch - dep) / 86400.0
+
+        # Build trajectory
+        s0 = OrbitalState(epoch=dep, position=r_orig.copy(),
+                          velocity=sol1.v1.copy(), central_body=CelestialBody.SUN)
+        s1 = OrbitalState(epoch=flyby_epoch, position=r_fly.copy(),
+                          velocity=v_sc_dep_fly.copy(), central_body=CelestialBody.SUN)
+        s2 = OrbitalState(epoch=arr_epoch, position=r_dest.copy(),
+                          velocity=v_sc_arr_dest.copy(), central_body=CelestialBody.SUN)
+        m_dep_vec = (v_inf_dep / max(float(np.linalg.norm(v_inf_dep)), 1e-10)) * dv_dep
+        m_fly_vec = np.zeros(3) if not powered else flyby_result.powered_dv_km_s * np.ones(3)
+        m_cap_vec = (v_inf_arr / max(float(np.linalg.norm(v_inf_arr)), 1e-10)) * dv_cap
+        
+        traj = Trajectory(
+            states=[s0, s1, s2],
+            maneuvers=[
+                Maneuver(epoch=dep, delta_v=m_dep_vec, label="TMI"),
+                Maneuver(epoch=flyby_epoch, delta_v=m_fly_vec,
+                         label=f"FLY_{flyby_body_name}"),
+                Maneuver(epoch=arr_epoch, delta_v=m_cap_vec, label="MOI"),
+            ],
+            metadata={
+                "flyby_body": flyby_body_name,
+                "periapsis_alt_km": round(periapsis_alt, 2),
+                "flyby_turn_angle_deg": round(flyby_result.turn_angle_deg, 3),
+                "tof_leg1_days": round(tof1_days, 2),
+                "tof_leg2_days": round(tof2_days, 2),
+                "dv_dep_km_s": round(dv_dep, 4),
+                "dv_fly_km_s": round(dv_fly, 4),
+                "dv_cap_km_s": round(dv_cap, 4),
+                "c3_km2_s2": round(float(np.dot(v_inf_dep, v_inf_dep)), 4),
+            },
+        )
+        all_trajs.append(traj)
+
+        if dv_total > max_dv or total_days > max_days:
+            return 99.0 + dv_total, 999.0 + total_days
+
+        return dv_total, total_days
+
+    sampler = optuna.samplers.NSGAIISampler(seed=seed)
+    study = optuna.create_study(directions=["minimize", "minimize"], sampler=sampler)
+    study.optimize(objective, n_trials=n_trials, timeout=time_limit)
+    wall_time = time.time() - start_time
+
+    feasible = [t for t in all_trajs if t.is_feasible(max_dv, max_days)]
+    best = min(feasible, key=lambda t: t.delta_v_total, default=None)
+
+    from astra.optimization.pareto import pareto_from_trajectories
+    pareto_trajs, _ = pareto_from_trajectories(feasible) if feasible else ([], [])
+
+    return OptimizationResult(
+        best_trajectory=best,
+        pareto_front=list(pareto_trajs),
+        all_trajectories=feasible,
+        n_evaluations=len(study.trials),
+        n_feasible=len(feasible),
+        wall_time_s=wall_time,
+        converged=best is not None,
+    )
+
+
+
 

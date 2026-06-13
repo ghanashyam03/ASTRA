@@ -113,6 +113,7 @@ class OptimizationStrategySchema(StrEnum):
     GRADIENT = "gradient"
     EVOLUTIONARY = "evolutionary"
     HYBRID = "hybrid"
+    FLYBY = "flyby"
 
 class OptimizationBudgetSchema(BaseModel):
     max_evaluations: Annotated[int, Field(gt=0)] = 5000
@@ -128,12 +129,30 @@ class TrajectorySchema(BaseModel):
     origin: BodyOrbitSchema
     destination: BodyOrbitSchema
 
+
+class FlybyBodySchema(BaseModel):
+    """Specification for a single flyby body in a multi-body trajectory."""
+    body: str
+    min_periapsis_alt_km: float = 300.0   # minimum periapsis altitude above surface
+    max_periapsis_alt_km: float = 10000.0  # maximum periapsis altitude
+    powered: bool = False                   # whether a periapsis burn is allowed
+
+
+class MultiBodyTrajectorySchema(BaseModel):
+    """Extended trajectory schema supporting multi-body flyby sequences."""
+    origin: BodyOrbitSchema
+    destination: BodyOrbitSchema
+    flyby_sequence: list[FlybyBodySchema] = []
+    # (If empty, this is a direct transfer — identical to TrajectorySchema)
+
+
 class MissionDSL(BaseModel):
     """Root model for ASTRA Mission Definition Language."""
     version: str = "1.0"
     mission_id: str
     spacecraft: SpacecraftSchema
     trajectory: TrajectorySchema
+    multi_body_trajectory: MultiBodyTrajectorySchema | None = None
     launch_window: LaunchWindowSchema
     constraints: list[ConstraintSchema] = []
     objectives: list[ObjectiveSchema]

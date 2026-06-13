@@ -1,0 +1,71 @@
+version: "1.0"
+mission_id: "earth_venus_mars_2032_flyby"
+
+spacecraft:
+  name: "Atlas-V"
+  dry_mass_kg: 1500.0
+  fuel_mass_kg: 2000.0
+  propulsion:
+    type: chemical
+    isp_seconds: 450.0
+    thrust_newtons: 20000.0
+
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Mars
+    orbit:
+      type: circular
+      altitude_km: 300.0
+
+multi_body_trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Mars
+    orbit:
+      type: circular
+      altitude_km: 300.0
+  flyby_sequence:
+    - body: VENUS
+      min_periapsis_alt_km: 300.0
+      max_periapsis_alt_km: 15000.0
+      powered: false
+
+launch_window:
+  start: "2032-10-01T00:00:00Z"
+  end: "2033-02-01T00:00:00Z"
+  resolution_days: 1
+  tof_min_days: 150
+  tof_max_days: 600
+
+constraints:
+  - type: max_delta_v
+    value_km_s: 9.0
+    hard: true
+  - type: max_duration
+    value_days: 600
+    hard: true
+
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+
+physics:
+  models: [patched_conics]
+  ephemeris: DE440
+
+optimization:
+  strategy: flyby
+  budget:
+    max_evaluations: 2000
+    time_limit_seconds: 180
+  seed: 42

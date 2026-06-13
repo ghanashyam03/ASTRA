@@ -1,0 +1,179 @@
+{
+  "mission_id": "earth_venus_mars_2032_flyby",
+  "result": {
+    "n_evaluations": 300,
+    "n_feasible": 1,
+    "wall_time_s": 0.449,
+    "converged": true,
+    "best_trajectory": {
+      "delta_v_total_km_s": 8.879881,
+      "duration_days": 249.34,
+      "departure_epoch_j2000": 1042014453.0799325,
+      "arrival_epoch_j2000": 1063557395.2436196,
+      "n_maneuvers": 3,
+      "maneuvers": [
+        {
+          "epoch": 1042014453.0799325,
+          "dv_km_s": [
+            3.9875135998006273,
+            1.0628115602776365,
+            1.166400212209429
+          ],
+          "magnitude_km_s": 4.288394,
+          "label": "TMI"
+        },
+        {
+          "epoch": 1048958759.4136258,
+          "dv_km_s": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "magnitude_km_s": 0.0,
+          "label": "FLY_VENUS"
+        },
+        {
+          "epoch": 1063557395.2436196,
+          "dv_km_s": [
+            2.889399859115956,
+            3.509119877845628,
+            0.6474586131267056
+          ],
+          "magnitude_km_s": 4.591487,
+          "label": "MOI"
+        }
+      ],
+      "metadata": {
+        "flyby_body": "VENUS",
+        "periapsis_alt_km": 5268.53,
+        "flyby_turn_angle_deg": 25.758,
+        "tof_leg1_days": 80.37,
+        "tof_leg2_days": 168.97,
+        "dv_dep_km_s": 4.2884,
+        "dv_fly_km_s": 0.0,
+        "dv_cap_km_s": 4.5915,
+        "c3_km2_s2": 24.5596
+      }
+    },
+    "pareto_front_size": 1,
+    "pareto_front": [
+      {
+        "delta_v_total_km_s": 8.879881,
+        "duration_days": 249.34,
+        "departure_epoch_j2000": 1042014453.0799325,
+        "arrival_epoch_j2000": 1063557395.2436196,
+        "n_maneuvers": 3,
+        "maneuvers": [
+          {
+            "epoch": 1042014453.0799325,
+            "dv_km_s": [
+              3.9875135998006273,
+              1.0628115602776365,
+              1.166400212209429
+            ],
+            "magnitude_km_s": 4.288394,
+            "label": "TMI"
+          },
+          {
+            "epoch": 1048958759.4136258,
+            "dv_km_s": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "magnitude_km_s": 0.0,
+            "label": "FLY_VENUS"
+          },
+          {
+            "epoch": 1063557395.2436196,
+            "dv_km_s": [
+              2.889399859115956,
+              3.509119877845628,
+              0.6474586131267056
+            ],
+            "magnitude_km_s": 4.591487,
+            "label": "MOI"
+          }
+        ],
+        "metadata": {
+          "flyby_body": "VENUS",
+          "periapsis_alt_km": 5268.53,
+          "flyby_turn_angle_deg": 25.758,
+          "tof_leg1_days": 80.37,
+          "tof_leg2_days": 168.97,
+          "dv_dep_km_s": 4.2884,
+          "dv_fly_km_s": 0.0,
+          "dv_cap_km_s": 4.5915,
+          "c3_km2_s2": 24.5596
+        }
+      }
+    ]
+  },
+  "explanation": {
+    "mission_id": "earth_venus_mars_2032_flyby",
+    "delta_v_decomposition": {
+      "total_km_s": 8.8799,
+      "margin_km_s": 0.2664,
+      "components": [
+        {
+          "label": "TMI",
+          "magnitude_km_s": 4.2884,
+          "fraction_pct": 48.3,
+          "epoch_j2000": 1042014453.0799325
+        },
+        {
+          "label": "FLY_VENUS",
+          "magnitude_km_s": 0.0,
+          "fraction_pct": 0.0,
+          "epoch_j2000": 1048958759.4136258
+        },
+        {
+          "label": "MOI",
+          "magnitude_km_s": 4.5915,
+          "fraction_pct": 51.7,
+          "epoch_j2000": 1063557395.2436196
+        }
+      ]
+    },
+    "constraint_analysis": {
+      "all_satisfied": true,
+      "constraints": [
+        {
+          "name": "max_delta_v",
+          "type": "max_delta_v",
+          "limit": 9.0,
+          "actual": 8.8799,
+          "satisfied": true,
+          "margin_pct": 1.3,
+          "binding": true
+        },
+        {
+          "name": "max_duration",
+          "type": "max_duration",
+          "limit": 600.0,
+          "actual": 249.3396,
+          "satisfied": true,
+          "margin_pct": 58.4,
+          "binding": false
+        }
+      ]
+    },
+    "window_rationale": {
+      "departure_date_utc": "2033-01-07T20:26:23.896",
+      "arrival_date_utc": "2033-09-14T04:35:26.061",
+      "tof_days": 249.3,
+      "delta_v_km_s": 8.8799,
+      "c3_km2_s2": 24.5596,
+      "synodic_period_days": 779.9,
+      "planet_phase_angle_deg": 81.89,
+      "rationale": [
+        "Departure 2033-01-07T20:26:23.896: EARTH-MARS phase angle is 81.9\u00b0, near optimal for 249-day transfer.",
+        "C3 = 24.56 km\u00b2/s\u00b2 (launch energy). Lower C3 means less fuel on departure burn.",
+        "Total \u0394v = 8.880 km/s over 249.3 days.",
+        "Synodic period is 780 days \u2014 next opportunity ~780 days after this window.",
+        "TOF of 249 days places arrival at 2033-09-14T04:35:26.061."
+      ]
+    },
+    "pareto_analysis": null
+  }
+}
