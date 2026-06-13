@@ -63,6 +63,15 @@ def cmd_optimize(args: argparse.Namespace) -> int:
             seed=mission.seed,
             pretrain_samples=args.pretrain,
         )
+    elif strategy == "pinn":
+        from astra.optimization.engine import optimize_mission_pinn_accelerated
+        result = optimize_mission_pinn_accelerated(
+            mission, kernel,
+            n_trials=trials,
+            time_limit=time_limit,
+            seed=mission.seed,
+            pinn_train_samples=args.pretrain,
+        )
     elif strategy == "hybrid":
         from astra.optimization.engine import optimize_mission_hybrid
         result = optimize_mission_hybrid(
@@ -145,7 +154,7 @@ def main() -> None:
     opt.add_argument("mission", nargs="?", help="Path to mission YAML file")
     opt.add_argument("--trials", type=int, default=2000)
     opt.add_argument("--time-limit", type=int, default=120)
-    opt.add_argument("--strategy", choices=["bayesian", "neural", "hybrid", "mcts"],
+    opt.add_argument("--strategy", choices=["bayesian", "neural", "hybrid", "mcts", "pinn"],
                      default="bayesian", help="Optimization strategy to use")
     opt.add_argument("--neural", action="store_true",
                      help="Use neural-accelerated optimization (legacy)")
