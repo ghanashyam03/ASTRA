@@ -5,6 +5,7 @@ from astra.neural.surrogate import (
     SurrogateOutput,
     SurrogatePrediction,
 )
+from astra.neural.fno import PorkchopFNO
 
 __all__ = [
     "LambertPINN",
@@ -14,4 +15,6 @@ __all__ = [
     "NeuralSurrogate",
     "SurrogateOutput",
     "SurrogateMetrics",
+    "PorkchopFNO",
 ]
+

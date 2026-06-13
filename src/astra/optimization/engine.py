@@ -807,4 +807,92 @@ def optimize_mission_mcts(
     )
 
 
+def compute_porkchop_fno(
+    mission: CompiledMission,
+    kernel: PhysicsKernel,
+    fno: Any,             # PorkchopFNO
+    n_dep: int = 150,
+    n_tof: int = 150,
+    refine_top_k: int = 20,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Accelerated porkchop computation using FNO approximation + Lambert refinement.
+    
+    Same return signature as compute_porkchop: (dep_epochs, tof_days, dv_grid).
+    
+    Algorithm:
+      1. Precompute all body states on the grid (only SPICE calls here)
+      2. FNO predicts approximate Δv grid (fast — no Lambert)
+      3. Find top refine_top_k candidates from FNO grid
+      4. Run exact Lambert for those candidates and replace FNO values
+      5. Return hybrid grid (FNO everywhere, Lambert at optima)
+    """
+    from astra.explainability.window_rationale import compute_synodic_period
+    mu_sun = GM["SUN"]
+    dep_epochs = np.linspace(
+        mission.departure_epoch_start,
+        mission.departure_epoch_end,
+        n_dep,
+    )
+    tof_arr = np.linspace(mission.tof_min_seconds, mission.tof_max_seconds, n_tof)
+
+    # Step 1: precompute body states
+    body_states_dep: dict[float, tuple[np.ndarray, np.ndarray]] = {}
+    body_states_arr: dict[float, tuple[np.ndarray, np.ndarray]] = {}
+    for dep in dep_epochs:
+        try:
+            s = kernel.get_body_state(mission.origin_body, dep)
+            body_states_dep[dep] = (s.position, s.velocity)
+        except Exception:
+            pass
+    for dep in dep_epochs:
+        for tof in tof_arr:
+            arr = dep + tof
+            if arr not in body_states_arr:
+                try:
+                    s = kernel.get_body_state(mission.destination_body, arr)
+                    body_states_arr[arr] = (s.position, s.velocity)
+                except Exception:
+                    pass
+
+    syn_days = compute_synodic_period(mission.origin_body, mission.destination_body)
+    synodic_s = syn_days * 86400.0 if syn_days != float("inf") else 0.0
+
+    # Step 2: FNO approximate grid
+    fno_grid = fno.predict_grid(
+        dep_epochs, tof_arr,
+        float(dep_epochs[0]), float(dep_epochs[-1]),
+        float(tof_arr[0]), float(tof_arr[-1]),
+        body_states_dep, body_states_arr, synodic_s,
+    )
+
+    # Step 3 & 4: find candidates and refine with Lambert
+    candidates = fno.find_top_k_candidates(fno_grid, dep_epochs, tof_arr, refine_top_k)
+    dv_grid = fno_grid.copy()
+
+    for dep_c, tof_c in candidates:
+        # Find closest grid indices
+        i = int(np.argmin(np.abs(dep_epochs - dep_c)))
+        j = int(np.argmin(np.abs(tof_arr - tof_c)))
+        if dep_c not in body_states_dep:
+            continue
+        arr_c = dep_c + tof_c
+        if arr_c not in body_states_arr:
+            continue
+        r1, v1 = body_states_dep[dep_c]
+        r2, v2 = body_states_arr[arr_c]
+        traj = evaluate_transfer(
+            r1, v1, r2, v2, dep_c, tof_c, mu_sun,
+            origin_body=mission.origin_body.name,
+            destination_body=mission.destination_body.name,
+            parking_altitude_km=mission.parking_altitude_km,
+            capture_altitude_km=mission.capture_altitude_km,
+            use_soi_patching=True,
+        )
+        if traj is not None:
+            dv_grid[i, j] = traj.delta_v_total
+
+    return dep_epochs, tof_arr / 86400.0, dv_grid
+
+
+
 
