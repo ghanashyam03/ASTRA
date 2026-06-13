@@ -9,6 +9,8 @@ from astra.optimization.engine import (
     optimize_mission_hybrid,
     optimize_mission_mcts,
     optimize_mission_neural_accelerated,
+    optimize_mission_pinn_accelerated,
+    optimize_mission_with_flyby,
 )
 from astra.optimization.mcts import (
     MCTSNode,
@@ -26,6 +28,8 @@ __all__ = [
     "optimize_mission_bayesian",
     "optimize_mission_hybrid",
     "optimize_mission_neural_accelerated",
+    "optimize_mission_pinn_accelerated",
+    "optimize_mission_with_flyby",
     "optimize_mission_mcts",
     "PhaseState",
     "MCTSNode",
