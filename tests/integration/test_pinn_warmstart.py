@@ -1,16 +1,16 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 SPICE = (Path("data/spice_kernels") / "de440.bsp").exists()
 
 @pytest.mark.skipif(not SPICE, reason="SPICE kernels required")
-def test_pinn_dataset_generation():
-    from astra.physics.kernel import PhysicsKernel
-    from astra.dsl.parser import parse_mission_file
+def test_pinn_dataset_generation() -> None:
     from astra.dsl.compiler import compile_mission
+    from astra.dsl.parser import parse_mission_file
     from astra.neural.training.pipeline import generate_pinn_dataset
-    from astra.state.orbital_state import CelestialBody
-    
+    from astra.physics.kernel import PhysicsKernel
+
     kernel = PhysicsKernel().load()
     dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
     mission = compile_mission(dsl, kernel.ephemeris)
@@ -30,15 +30,16 @@ def test_pinn_dataset_generation():
 
 @pytest.mark.skipif(not SPICE, reason="SPICE kernels required")
 @pytest.mark.slow
-def test_pinn_warmstart_quality():
+def test_pinn_warmstart_quality() -> None:
     """PINN warm-start with 1000 trials must match standard 2000-trial quality."""
-    from astra.physics.kernel import PhysicsKernel
-    from astra.dsl.parser import parse_mission_file
     from astra.dsl.compiler import compile_mission
+    from astra.dsl.parser import parse_mission_file
     from astra.optimization.engine import (
         optimize_mission_bayesian,
         optimize_mission_pinn_accelerated,
     )
+    from astra.physics.kernel import PhysicsKernel
+
     kernel = PhysicsKernel().load()
     dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
     mission = compile_mission(dsl, kernel.ephemeris)
