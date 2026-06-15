@@ -1,0 +1,59 @@
+version: "1.0"
+mission_id: "earth_venus_mars_2032_flyby"
+
+spacecraft:
+  name: "Ares-Venus-Assist"
+  dry_mass_kg: 1800.0
+  fuel_mass_kg: 2400.0
+  propulsion:
+    type: chemical
+    isp_seconds: 450.0
+    thrust_newtons: 22000.0
+
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Mars
+    orbit:
+      type: circular
+      altitude_km: 300.0
+
+launch_window:
+  start: "2032-01-01T00:00:00Z"
+  end: "2033-01-01T00:00:00Z"
+  resolution_days: 5
+  tof_min_days: 200
+  tof_max_days: 700
+
+constraints:
+  - type: max_delta_v
+    value_km_s: 9.0
+    hard: true
+  - type: min_periapsis
+    body: Venus
+    value_km: 6351.8
+    hard: true
+
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+  - metric: time_of_flight
+    direction: minimize
+    weight: 0.2
+
+physics:
+  models: [patched_conics, n_body]
+  ephemeris: DE440
+  n_body_perturbations: [Venus]
+
+optimization:
+  strategy: bayesian
+  budget:
+    max_evaluations: 200
+    time_limit_seconds: 120
+  seed: 42
