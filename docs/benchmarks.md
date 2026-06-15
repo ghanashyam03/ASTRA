@@ -120,3 +120,32 @@ To maintain the scientific credibility of ASTRA, validations are classified into
     *   Long TOF optimal multi-rev $\Delta v$: $\approx 14.29$ km/s (compared to single-rev $44.4$ km/s).
 *   **Runtime Characteristics**: $\approx 10 - 20$ seconds (or $< 5$ seconds with neural pre-filtering enabled).
 *   **Limitations & Simplifications**: Standard 2-impulse interplanetary transfer model.
+
+### 8. Curtis Example 5.2 (Geocentric Lambert BVP)
+*   **Category**: Analytical validation
+*   **Source**: Curtis, *Orbital Mechanics for Engineering Students*, 4th ed., Ex. 5.2.
+*   **Validation Targets**:
+    *   $\mathbf{r}_1 = [5000, 10000, 2100]$ km
+    *   $\mathbf{r}_2 = [-14600, 2500, 7000]$ km
+    *   Time of flight: $3600$ s
+    *   $\mu = 398600.4418\text{ km}^3/\text{s}^2$ (Earth)
+*   **Expected Outputs**:
+    *   Published $\mathbf{v}_1 = [-5.9925, 1.9254, 3.2456]$ km/s
+    *   ASTRA tolerance: $|\mathbf{v}_{1,\text{computed}} - \mathbf{v}_{1,\text{ref}}| < 1\times10^{-4}$ km/s per component
+*   **Runtime Characteristics**: $< 1$ ms (pure math, no SPICE).
+*   **Significance**: Gold standard for Lambert solver correctness.
+
+### 9. Earth-Venus-Mars 2032 Flyby
+*   **Category**: Multi-body gravity-assist validation
+*   **Specification File**: `data/benchmarks/earth_venus_mars_2032.yaml`
+*   **Expected Outputs**:
+    *   Total $\Delta v < 9.0$ km/s
+    *   Venus periapsis $> 300$ km altitude
+*   **Tests**: Continuous periapsis optimization and multi-body DSL schema coverage.
+*   **Runtime Characteristics**: $\approx 2$ minutes.
+
+### 10. Regression Lock
+*   **Category**: Regression prevention
+*   **Captures**: Best $\Delta v$, Pareto size, and hypervolume indicator (HVI) for Earth-Mars 2031.
+*   **Tolerance**: $\Delta v \pm 2\%$, Pareto size $\pm 30\%$.
+*   **Update Process**: Run `uv run python tests/benchmark/update_baseline.py` after verified improvement.

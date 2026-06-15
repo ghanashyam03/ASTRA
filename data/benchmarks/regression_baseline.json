@@ -1,0 +1,10 @@
+{
+  "earth_mars_2031": {
+    "best_dv_km_s": 5.341704,
+    "best_tof_days": 209.967,
+    "pareto_size": 218,
+    "n_evaluations": 2000,
+    "n_feasible": 812,
+    "hypervolume_indicator": 237.3008
+  }
+}
