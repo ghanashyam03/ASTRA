@@ -599,5 +599,42 @@ ASTRA enforces a multi-tiered trajectory validation strategy to ensure numerical
 
 For a detailed breakdown of every benchmark currently supported, physical assumptions, target values, expected outputs, and runtime characteristics, see the canonical [Benchmarks Registry](docs/benchmarks.md).
 
+---
+
+## Optimization Strategies
+
+ASTRA supports 6 trajectory optimization strategies tailored for different planetary geometries, search space dimensions, and runtime constraints:
+
+1. **Bayesian Optimization (`bayesian`)**: Trajectory search powered by Tree-structured Parzen Estimators (TPE) via Optuna to navigate multi-dimensional launch windows.
+2. **Hybrid Optimization (`hybrid`)**: Combines global Bayesian exploration with local gradient-based optimization (L-BFGS-B) to refine the top candidate trajectory windows.
+3. **Neural Pre-filtering (`neural`)**: Active classifier-guided search that uses geometric features and a `FeasibilityClassifier` surrogate to prune infeasible transfer regions, reducing Lambert solver queries.
+4. **Discrete sequence search (`mcts`)**: Trajectory sequence planner utilizing Monte Carlo Tree Search to explore planetary flyby paths and optimal synodic schedules.
+5. **Gravity Deflection (`flyby`)**: Deflection optimization for powered and unpowered flybys, satisfying minimum periapsis clearances.
+6. **PINN Acceleration (`pinn`)**: Deep ensemble Cartesian velocity prediction utilizing Physics-Informed Neural Networks with conservation loss residuals and epistemic uncertainty-aware active learning.
+
+## Running the Acceptance Test
+
+To execute the full end-to-end scientific acceptance test verifying the Physics, DSL, Constraints, Optimization, Explainability, Pareto Quality, Sensitivity Analysis, and Data Persistence layers:
+
+```bash
+uv run pytest tests/benchmark/test_full_system_acceptance.py -v -m slow
+```
+
+## Canonical Benchmark Registry
+
+| ID | Benchmark Name | Category | Expected $\Delta v$ (km/s) / Verification Target |
+|---|---|---|---|
+| 1 | Curtis Earth Satellite Lambert BVP | Analytical Validation | Published $\mathbf{v}_1 = [-5.9925, 1.9254, 3.2456]$ km/s (Error $< 1\times 10^{-4}$ km/s) |
+| 2 | Earth-Moon Lambert Transfer | Analytical & Physics Validation | TLI excess velocity $v_{\infty} \approx 6.2$ km/s |
+| 3 | Cassini Venus Flyby (1998) | Historical Mission-Inspired | Deflection angle $\approx 39.95^\circ$ |
+| 4 | Mars Odyssey (2001) | Historical Mission-Inspired | $\approx 5.75$ km/s |
+| 5 | Mars Reconnaissance Orbiter (2005) | Historical Mission-Inspired | C3 departure energy $\approx 16.84\text{ km}^2/\text{s}^2$ |
+| 6 | Lunar Free-Return Trajectory | Historical Mission-Inspired | Feasible outbound Apollo-class transfer ($\approx 3$ days TOF) |
+| 7 | Earth-Mars 2031 (Standard) | Benchmark Validation | $3.0 < \Delta v < 8.0$ km/s (Optimal: $\approx 6.27$ km/s) |
+| 8 | Earth-Mars 2031 (Long TOF) | Benchmark Validation | Multi-rev optimal $\Delta v \approx 14.29$ km/s |
+| 9 | Earth-Venus-Mars 2032 Flyby | Multi-body Gravity-Assist | Total $\Delta v < 9.0$ km/s, Venus periapsis $> 300$ km |
+| 10 | Regression Lock | Regression Prevention | Standard Earth-Mars 2031 $\Delta v$ within $\pm 2\%$ of baseline |
+
+
 
 

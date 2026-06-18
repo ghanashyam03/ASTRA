@@ -18,7 +18,11 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from astra.api.dependencies import _jobs, get_kernel, get_store
 from astra.api.schemas.requests import OptimizeRequest
-from astra.api.schemas.responses import JobStatusResponse, JobSubmittedResponse
+from astra.api.schemas.responses import (
+    JobStatusResponse,
+    JobSubmittedResponse,
+    MissionSummaryResponse,
+)
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_string
 from astra.explainability.engine import explain
@@ -197,3 +201,66 @@ async def pareto_metrics(job_id: str) -> dict[str, Any]:
         "dv_km_s": dvs,
         "tof_days": days,
     }
+
+
+@router.get("/v1/missions/{job_id}/summary", response_model=MissionSummaryResponse)
+async def mission_summary(job_id: str) -> dict[str, Any]:
+    """Return a high-level MissionSummary for a completed job."""
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    if job["status"] != "complete":
+        raise HTTPException(status_code=409, detail=f"Job status: {job['status']}")
+
+    from astra.dsl.compiler import compile_mission
+    from astra.dsl.parser import parse_mission_string
+    from astra.state.mission import mission_summary_from_result
+
+    result_dict = job.get("result", {})
+    mission_yaml = job.get("mission_yaml", "")
+    if not mission_yaml:
+        raise HTTPException(status_code=422, detail="Mission YAML not available")
+
+    kernel = get_kernel()
+    dsl = parse_mission_string(mission_yaml)
+    mission = compile_mission(dsl, kernel.ephemeris if kernel._kernels_loaded else None)
+
+    from astra.optimization.engine import OptimizationResult
+
+    # Reconstruct a minimal OptimizationResult for summary
+    res_obj = OptimizationResult(
+        best_trajectory=None,
+        n_evaluations=result_dict.get("n_evaluations", 0),
+        n_feasible=result_dict.get("n_feasible", 0),
+        wall_time_s=result_dict.get("wall_time_s", 0.0),
+    )
+
+    best_tid = job.get("best_trajectory_id")
+    if best_tid:
+        store = get_store()
+        row = store.get_trajectory(best_tid)
+        if row:
+            # Reconstruct Trajectory from stored JSON for summary
+            import numpy as np
+
+            from astra.state.orbital_state import CelestialBody, OrbitalState
+            from astra.state.trajectory import Maneuver, Trajectory
+            td = row["trajectory"]
+            maneuvers = [
+                Maneuver(epoch=m["epoch"], delta_v=np.array(m["dv_km_s"]), label=m["label"])
+                for m in td["maneuvers"]
+            ]
+            states = [
+                OrbitalState(epoch=td["departure_epoch_j2000"],
+                             position=np.zeros(3), velocity=np.zeros(3),
+                             central_body=CelestialBody.SUN),
+                OrbitalState(epoch=td["arrival_epoch_j2000"],
+                             position=np.zeros(3), velocity=np.zeros(3),
+                             central_body=CelestialBody.SUN),
+            ]
+            res_obj.best_trajectory = Trajectory(states=states, maneuvers=maneuvers,
+                                                 metadata=td.get("metadata", {}))
+
+    summary = mission_summary_from_result(res_obj, mission)
+    return summary.to_dict()
+
