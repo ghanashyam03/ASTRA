@@ -1,3 +1,4 @@
+from astra.neural.feasibility import FeasibilityClassifier
 from astra.neural.pinn import ActiveLearningManager, LambertPINN, LambertPINNEnsemble
 from astra.neural.surrogate import (
     NeuralSurrogate,
@@ -14,4 +15,5 @@ __all__ = [
     "NeuralSurrogate",
     "SurrogateOutput",
     "SurrogateMetrics",
+    "FeasibilityClassifier",
 ]
