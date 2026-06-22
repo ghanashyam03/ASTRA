@@ -39,11 +39,11 @@ from astra.physics.flyby import (
 from astra.physics.kernel import PhysicsKernel
 
 from astra.physics.lambert import (
-    LambertSolution,
     find_best_transfer,
     lambert_izzo,
     lambert_izzo_multirev,
     lambert_min_tof_multirev,
+    LambertSolution,
 )
 
 from astra.physics.maneuvers import (
@@ -56,17 +56,17 @@ from astra.physics.maneuvers import (
 from astra.physics.propagator import (
     IntegrationResult,
     Integrator,
-    RK45Integrator,
     propagate_to_times,
     propagate_two_body,
+    RK45Integrator,
 )
 
 from astra.physics.soi import (
-    DEFAULT_PARKING_ALTITUDE_KM,
-    SOIResult,
     compute_soi_radius,
+    DEFAULT_PARKING_ALTITUDE_KM,
     get_default_parking_altitude,
     is_in_soi,
+    SOIResult,
 )
 
 __all__ = [
