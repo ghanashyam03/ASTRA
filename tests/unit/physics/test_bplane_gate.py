@@ -49,7 +49,6 @@ def test_max_turn_with_burn_exceeds_unpowered() -> None:
 
 def test_venus_audit_case_now_correctly_rejected() -> None:
     """Audit case: required turn far exceeds both unpowered and unlimited‑burn ceilings."""
-    mu = GM["VENUS"]
     v_inf_in = 13.355  # km/s, Venus approach speed corresponding to 25.75° ceiling
     required_turn = math.radians(156.85)
     feas = check_flyby_feasibility(v_inf_in, required_turn, "VENUS")
@@ -87,7 +86,7 @@ def test_bplane_frame_orthonormal() -> None:
     assert abs(np.dot(T, R)) < 1e-9
 
 
-def test_orbit_normal_perpendicular_to_S() -> None:
+def test_orbit_normal_perpendicular_to_s() -> None:
     S = np.array([1.0, 0.0, 0.0])
     B_hat = np.array([0.0, 1.0, 0.0])
     h = orbit_normal_from_bvector(S, B_hat)
