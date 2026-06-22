@@ -3,12 +3,14 @@ Provides SPICE ephemerides, Lambert solvers, numerical propagation, and integrat
 """
 from __future__ import annotations
 
+# Local imports – sorted alphabetically and names within each import block sorted
 from astra.physics.ephemeris import (
     EphemerisEngine,
     EphemerisTarget,
-    TargetType,
     resolve_central_body,
+    TargetType,
 )
+
 from astra.physics.exceptions import (
     InvalidEphemerisError,
     LambertConvergenceError,
@@ -17,23 +19,26 @@ from astra.physics.exceptions import (
     PhysicsError,
     PropagationError,
 )
+
 from astra.physics.flyby import (
     SAFE_FLYBY_ALTITUDE_KM,
+    FlybyFeasibility,
     FlybyResult,
+    bplane_vector,
+    build_bplane_frame,
+    check_flyby_feasibility,
     compute_flyby,
     compute_flyby_turn_angle,
-    periapsis_from_impact_parameter,
     impact_parameter_from_periapsis,
-    periapsis_from_turn_angle,
     max_achievable_turn_angle,
     max_achievable_turn_angle_with_unlimited_burn,
-    check_flyby_feasibility,
-    build_bplane_frame,
     orbit_normal_from_bvector,
-    bplane_vector,
-    FlybyFeasibility,
+    periapsis_from_impact_parameter,
+    periapsis_from_turn_angle,
 )
+
 from astra.physics.kernel import PhysicsKernel
+
 from astra.physics.lambert import (
     LambertSolution,
     find_best_transfer,
@@ -41,12 +46,14 @@ from astra.physics.lambert import (
     lambert_izzo_multirev,
     lambert_min_tof_multirev,
 )
+
 from astra.physics.maneuvers import (
     arrival_delta_v,
     c3_from_vinf,
     departure_delta_v,
     hyperbolic_excess_speed,
 )
+
 from astra.physics.propagator import (
     IntegrationResult,
     Integrator,
@@ -54,6 +61,7 @@ from astra.physics.propagator import (
     propagate_to_times,
     propagate_two_body,
 )
+
 from astra.physics.soi import (
     DEFAULT_PARKING_ALTITUDE_KM,
     SOIResult,
@@ -68,11 +76,11 @@ __all__ = [
     "EphemerisTarget",
     "TargetType",
     "resolve_central_body",
+    "LambertSolution",
+    "find_best_transfer",
     "lambert_izzo",
     "lambert_izzo_multirev",
     "lambert_min_tof_multirev",
-    "find_best_transfer",
-    "LambertSolution",
     "propagate_two_body",
     "propagate_to_times",
     "Integrator",
