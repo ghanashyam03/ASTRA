@@ -1,7 +1,6 @@
 import math
 import numpy as np
 
-# Local imports – sorted alphabetically and names within the import block sorted
 from astra.physics.flyby import (
     build_bplane_frame,
     check_flyby_feasibility,
@@ -61,7 +60,6 @@ def test_venus_audit_case_now_correctly_rejected() -> None:
         f"unlimited‑burn ceiling={math.degrees(feas.max_turn_with_unlimited_burn_rad):.2f}°"
     )
     print(f"Rejection reason: {feas.rejection_reason}")
-    # The original audit found a 25.75° unpowered ceiling for this approach speed.
     assert abs(math.degrees(feas.max_unpowered_turn_rad) - 25.75) < 5.0, (
         "Computed unpowered ceiling should match the audit's independently-"
         "derived value within 5° tolerance"
@@ -73,7 +71,7 @@ def test_feasible_case_solves_correctly() -> None:
     feas = check_flyby_feasibility(9.7, math.radians(20.0), "VENUS")
     assert feas.is_achievable_unpowered is True
     assert feas.solved_periapsis_km is not None
-    assert feas.solved_periapsis_km > 6051.8  # above Venus surface
+    assert feas.solved_periapsis_km > 6051.8
 
 
 def test_bplane_frame_orthonormal() -> None:

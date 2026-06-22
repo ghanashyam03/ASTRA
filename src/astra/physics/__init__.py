@@ -3,12 +3,11 @@ Provides SPICE ephemerides, Lambert solvers, numerical propagation, and integrat
 """
 from __future__ import annotations
 
-# Local imports – sorted alphabetically and names within each import block sorted
 from astra.physics.ephemeris import (
     EphemerisEngine,
     EphemerisTarget,
-    TargetType,
     resolve_central_body,
+    TargetType,
 )
 
 from astra.physics.exceptions import (
