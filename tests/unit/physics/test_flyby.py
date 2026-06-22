@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+
 from astra.physics.flyby import (
     compute_flyby,
     compute_flyby_turn_angle,
@@ -20,9 +21,9 @@ def test_flyby_conserves_speed_unpowered() -> None:
     """Unpowered flyby must conserve |v_inf| exactly."""
     v_inf_in = np.array([4.0, 1.0, 0.5])
     result = compute_flyby(v_inf_in, periapsis_km=8000.0, body="EARTH", powered_dv_km_s=0.0)
-    assert (
-        abs(result.v_inf_out_km_s - result.v_inf_in_km_s) < 1e-6
-    ), "Unpowered flyby must conserve |v_inf|"
+    assert abs(result.v_inf_out_km_s - result.v_inf_in_km_s) < 1e-6, (
+        "Unpowered flyby must conserve |v_inf|"
+    )
 
 
 def test_powered_flyby_increases_vinf() -> None:

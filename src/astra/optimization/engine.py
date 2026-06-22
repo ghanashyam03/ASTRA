@@ -568,7 +568,7 @@ def optimize_mission_neural_accelerated(
     wall_time = time_mod.time() - start_time
     logger.info(
         f"Neural filter skipped {n_skipped}/{n_trials} evaluations "
-        f"({100*n_skipped/max(n_trials,1):.1f}% saved)."
+        f"({100 * n_skipped / max(n_trials, 1):.1f}% saved)."
     )
 
     pareto = []
@@ -886,7 +886,7 @@ def optimize_mission_mcts(
         for i in range(1, n_states - 1):
             dv_mag = best_path[i].dv_spent - best_path[i - 1].dv_spent
             delta_v_vec = np.array([dv_mag, 0.0, 0.0], dtype=np.float64)
-            label = "DEP" if i == 1 else f"FLY_{best_path[i-1].body}"
+            label = "DEP" if i == 1 else f"FLY_{best_path[i - 1].body}"
             epoch = best_path[i - 1].epoch
             maneuvers.append(Maneuver(epoch=epoch, delta_v=delta_v_vec, label=label))
 

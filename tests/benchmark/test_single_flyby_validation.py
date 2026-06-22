@@ -94,9 +94,9 @@ def test_gate_distinguishes_real_from_impossible() -> None:
 
     impossible_turn = real_turn + math.radians(130.0)
     feas = check_flyby_feasibility(v_inf, impossible_turn, body)
-    assert (
-        feas.is_achievable_at_all is False
-    ), "An artificially inflated turn angle must be rejected by the gate"
+    assert feas.is_achievable_at_all is False, (
+        "An artificially inflated turn angle must be rejected by the gate"
+    )
     print(
         f"\nReal turn {math.degrees(real_turn):.1f}° accepted. "
         f"Inflated turn {math.degrees(impossible_turn):.1f}° correctly rejected: "

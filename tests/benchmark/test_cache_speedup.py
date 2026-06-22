@@ -11,6 +11,7 @@ def test_cache_speedup_in_porkchop() -> None:
     """Cached porkchop must be ≥ 5× faster than uncached."""
 
     import spiceypy as spice
+
     from astra.dsl.compiler import compile_mission
     from astra.dsl.parser import parse_mission_file
     from astra.optimization.engine import compute_porkchop

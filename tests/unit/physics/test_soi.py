@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+
 from astra.physics.maneuvers import arrival_delta_v, c3_from_vinf, departure_delta_v
 from astra.physics.soi import compute_soi_radius, is_in_soi
 

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_file
 from astra.optimization.mcts import MCTSPlanner, MCTSResult

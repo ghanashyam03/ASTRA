@@ -116,8 +116,7 @@ def evaluate_all_constraints(
                     constraint_type="max_delta_v",
                     severity="hard" if c.hard else "soft",
                     message=(
-                        f"Delta-V limit of {c.limit} km/s exceeded with "
-                        f"{res_dv.actual_km:.3f} km/s"
+                        f"Delta-V limit of {c.limit} km/s exceeded with {res_dv.actual_km:.3f} km/s"
                     ),
                     actual_value=res_dv.actual_km,
                     limit_value=c.limit,
@@ -196,7 +195,7 @@ def evaluate_all_constraints(
                 constraint_type="launch_window",
                 severity="soft",
                 message=(
-                    f"Departure epoch {trajectory.departure_epoch} is outside " f"the launch window"
+                    f"Departure epoch {trajectory.departure_epoch} is outside the launch window"
                 ),
                 actual_value=trajectory.departure_epoch,
                 limit_value=mission.departure_epoch_start,

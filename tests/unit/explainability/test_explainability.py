@@ -1,4 +1,5 @@
 import numpy as np
+
 from astra.dsl.compiler import CompiledConstraint
 from astra.dsl.schema import ConstraintType
 from astra.state.orbital_state import CelestialBody, OrbitalState

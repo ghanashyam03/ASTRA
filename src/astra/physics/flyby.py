@@ -245,8 +245,7 @@ def periapsis_from_turn_angle(target_turn_rad: float, v_inf_km_s: float, mu: flo
     half_angle = target_turn_rad / 2.0
     if half_angle <= 0.0 or half_angle >= math.pi / 2.0:
         raise ValueError(
-            f"Target turn angle {math.degrees(target_turn_rad):.2f}° "
-            f"out of valid (0°, 180°) range"
+            f"Target turn angle {math.degrees(target_turn_rad):.2f}° out of valid (0°, 180°) range"
         )
     e = 1.0 / math.sin(half_angle)
     return float(a_h * (e - 1.0))

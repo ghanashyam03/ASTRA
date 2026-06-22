@@ -52,14 +52,12 @@ def test_earth_mars_2031_regression() -> None:
     if "earth_mars_2031" in baseline:
         ref_dv = baseline["earth_mars_2031"]["best_dv_km_s"]
         tolerance = 0.02
-        assert current_dv <= ref_dv * (
-            1 + tolerance
-        ), f"Regression: current delta-v {current_dv:.4f} > baseline {ref_dv:.4f} + 2%"
+        assert current_dv <= ref_dv * (1 + tolerance), (
+            f"Regression: current delta-v {current_dv:.4f} > baseline {ref_dv:.4f} + 2%"
+        )
         print(f"\nRegression OK: {current_dv:.4f} km/s (baseline: {ref_dv:.4f})")
     else:
-        print(
-            f"\nNo baseline yet. Current: {current_dv:.4f} km/s. " "Run update_baseline.py to set."
-        )
+        print(f"\nNo baseline yet. Current: {current_dv:.4f} km/s. Run update_baseline.py to set.")
 
 
 @pytest.mark.skipif(not SPICE, reason="SPICE kernels required")
@@ -72,7 +70,7 @@ def test_pareto_front_size_regression() -> None:
     baseline = load_baseline()
     if "earth_mars_2031" in baseline:
         ref_pareto = baseline["earth_mars_2031"]["pareto_size"]
-        assert (
-            current_pareto >= ref_pareto * 0.7
-        ), f"Regression: Pareto shrank from {ref_pareto} to {current_pareto}"
+        assert current_pareto >= ref_pareto * 0.7, (
+            f"Regression: Pareto shrank from {ref_pareto} to {current_pareto}"
+        )
     print(f"\nPareto size: {current_pareto}")

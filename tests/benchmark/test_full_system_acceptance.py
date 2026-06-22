@@ -77,9 +77,9 @@ def test_full_system_acceptance() -> None:
     test_propulsion = dataclasses.replace(mission.spacecraft.propulsion, propellant_mass_kg=10000.0)
     test_spacecraft = dataclasses.replace(mission.spacecraft, propulsion=test_propulsion)
     report = evaluate_all_constraints(best, mission, test_spacecraft)
-    assert (
-        report.is_hard_feasible
-    ), f"L3 FAIL: Hard constraint violated: {[v.constraint_type for v in report.hard_violations]}"
+    assert report.is_hard_feasible, (
+        f"L3 FAIL: Hard constraint violated: {[v.constraint_type for v in report.hard_violations]}"
+    )
     print(f"L3 PASS: All {len(report.physical_results)} constraints satisfied")
 
     # ─── Layer 5: Explainability Engine ─────────────────────────────────────
@@ -111,9 +111,9 @@ def test_full_system_acceptance() -> None:
     tof_sens = next(p for p in sensitivity.points if p.parameter_name == "time_of_flight")
     # Near optimal: reducing TOF should increase Δv (gradient should be negative
     # meaning f(x-h) > f(x+h), so central diff is negative)
-    assert (
-        abs(tof_sens.gradient) < 0.01
-    ), f"L7 FAIL: TOF sensitivity gradient {tof_sens.gradient:.6f} seems too large"
+    assert abs(tof_sens.gradient) < 0.01, (
+        f"L7 FAIL: TOF sensitivity gradient {tof_sens.gradient:.6f} seems too large"
+    )
     print(f"L7 PASS: TOF sensitivity: {tof_sens.gradient:.6f} km/s per day")
 
     # ─── Layer 8: Data Persistence ───────────────────────────────────────────
