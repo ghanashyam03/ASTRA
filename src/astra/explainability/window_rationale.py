@@ -105,8 +105,8 @@ def build_window_rationale(
         dep_date = ephemeris.date_from_epoch(dep_epoch)
         arr_date = ephemeris.date_from_epoch(arr_epoch)
     except Exception:
-        dep_date = f"J2000+{dep_epoch/86400:.0f}d"
-        arr_date = f"J2000+{arr_epoch/86400:.0f}d"
+        dep_date = f"J2000+{dep_epoch / 86400:.0f}d"
+        arr_date = f"J2000+{arr_epoch / 86400:.0f}d"
 
     # Build rationale from computed values
     rationale = [

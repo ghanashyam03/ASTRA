@@ -112,8 +112,7 @@ class EphemerisEngine:
         for kf in [lsk, pck, spk]:
             if not kf.exists():
                 raise FileNotFoundError(
-                    f"SPICE kernel not found: {kf}. "
-                    f"Run: uv run python scripts/download_kernels.py"
+                    f"SPICE kernel not found: {kf}. Run: uv run python scripts/download_kernels.py"
                 )
             spice.furnsh(str(kf))
         self._loaded = True

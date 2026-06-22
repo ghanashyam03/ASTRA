@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import pytest
+
 from astra.physics.forces.drag import AtmosphericDrag
 from astra.physics.forces.gravity import J2_CONSTANTS, ForceModel, J2Perturbation, PointMassGravity
 from astra.physics.forces.srp import SolarRadiationPressure

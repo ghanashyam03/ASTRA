@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from astra.state.orbital_state import CelestialBody
 
 SPICE_DIR = Path("data/spice_kernels")

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_file
 from astra.optimization.engine import optimize_mission_hybrid
@@ -46,15 +47,15 @@ def test_mars_odyssey_2001() -> None:
 
     # Reference: C3 = 16.4 km²/s²
     c3 = meta.get("c3_km2_s2", 0.0)
-    assert (
-        abs(c3 - 16.4) / 16.4 < 0.40
-    ), f"Odyssey C3 {c3:.2f} km²/s² not within 40% of reference 16.4 km²/s²"
+    assert abs(c3 - 16.4) / 16.4 < 0.40, (
+        f"Odyssey C3 {c3:.2f} km²/s² not within 40% of reference 16.4 km²/s²"
+    )
 
     # Reference: TOF = 200 days
     tof_days = best.duration_days
-    assert (
-        abs(tof_days - 200.0) / 200.0 < 0.10
-    ), f"Odyssey TOF {tof_days:.1f} d not within 10% of reference 200 d"
+    assert abs(tof_days - 200.0) / 200.0 < 0.10, (
+        f"Odyssey TOF {tof_days:.1f} d not within 10% of reference 200 d"
+    )
 
     print(f"\nOdyssey validation: C3={c3:.2f} km²/s² (ref 16.4), TOF={tof_days:.1f}d (ref 200d)")
     print(f"  Total Δv: {best.delta_v_total:.4f} km/s")
@@ -79,9 +80,9 @@ def test_mro_2005() -> None:
     assert best is not None
     c3 = best.metadata.get("c3_km2_s2", 0.0)
     # Reference: C3 ≈ 14.2 km²/s²
-    assert (
-        abs(c3 - 14.2) / 14.2 < 0.20
-    ), f"MRO C3 {c3:.2f} km²/s² not within 20% of reference 14.2 km²/s²"
+    assert abs(c3 - 14.2) / 14.2 < 0.20, (
+        f"MRO C3 {c3:.2f} km²/s² not within 20% of reference 14.2 km²/s²"
+    )
     print(f"\nMRO validation: C3={c3:.2f} km²/s² (ref 14.2)")
 
 
@@ -99,9 +100,9 @@ def test_cassini_venus_flyby_1998() -> None:
 
     assert result.is_valid, "Cassini Venus flyby periapsis must be above safe altitude"
     turn_ref = params["turn_angle_deg_reference"]
-    assert (
-        abs(result.turn_angle_deg - turn_ref) < 10.0
-    ), f"Turn angle {result.turn_angle_deg:.1f}° differs from reference {turn_ref}° by >10°"
+    assert abs(result.turn_angle_deg - turn_ref) < 10.0, (
+        f"Turn angle {result.turn_angle_deg:.1f}° differs from reference {turn_ref}° by >10°"
+    )
     print(f"\nCassini Venus flyby: turn={result.turn_angle_deg:.1f}° (ref ~{turn_ref}°)")
     print(f"  Heliocentric Δv gain: {result.dv_helio_km_s:.3f} km/s")
 

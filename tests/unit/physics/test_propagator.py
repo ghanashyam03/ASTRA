@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+
 from astra.physics.propagator import propagate_two_body
 from astra.state.orbital_state import GM, CelestialBody, OrbitalState, ReferenceFrame
 
