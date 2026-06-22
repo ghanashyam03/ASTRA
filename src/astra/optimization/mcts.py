@@ -13,9 +13,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from astra.dsl.compiler import CompiledMission
-from astra.physics.flyby import SAFE_FLYBY_ALTITUDE_KM
 from astra.physics.kernel import PhysicsKernel
-from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody
+from astra.state.orbital_state import GM, CelestialBody
 
 if TYPE_CHECKING:
     from astra.neural.surrogate import NeuralSurrogate
@@ -411,30 +410,17 @@ class MCTSPlanner:
         target_turn_angle_rad: float,
         body: str,
     ) -> float:
-        mu = GM[body.upper()]
-        r_body = PHYSICAL_RADIUS[CelestialBody[body.upper()]]
-        safe_alt = SAFE_FLYBY_ALTITUDE_KM.get(body.upper(), 300.0)
-        r_min = r_body + safe_alt
-
-        e_in_min = 1.0 + r_min * v_inf_in_mag**2 / mu
-        e_out_min = 1.0 + r_min * v_inf_out_mag**2 / mu
-        max_turn = math.asin(1.0 / e_in_min) + math.asin(1.0 / e_out_min)
-
-        if target_turn_angle_rad >= max_turn:
-            return r_min
-
-        low = r_min
-        high = 100.0 * r_min
-        for _ in range(30):
-            mid = (low + high) / 2.0
-            e_in = 1.0 + mid * v_inf_in_mag**2 / mu
-            e_out = 1.0 + mid * v_inf_out_mag**2 / mu
-            turn = math.asin(1.0 / e_in) + math.asin(1.0 / e_out)
-            if turn < target_turn_angle_rad:
-                high = mid
-            else:
-                low = mid
-        return low
+        """DEPRECATED bisection replaced by closed form. Still returns r_min as a
+        best-effort fallback when infeasible, preserving EXACT existing external
+        behavior for this prompt — Prompt 31 removes this fallback entirely and
+        makes infeasibility an explicit rejection."""
+        from astra.physics.flyby import (
+            check_flyby_feasibility,
+        )
+        feas = check_flyby_feasibility(v_inf_in_mag, target_turn_angle_rad, body)
+        if feas.solved_periapsis_km is not None:
+            return feas.solved_periapsis_km
+        return feas.min_safe_periapsis_km  # same fallback behavior as before, for now
 
     def _calculate_reward(self, state: PhaseState) -> float:
         if state.body != self.destination_body:

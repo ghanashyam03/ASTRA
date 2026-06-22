@@ -22,6 +22,16 @@ from astra.physics.flyby import (
     FlybyResult,
     compute_flyby,
     compute_flyby_turn_angle,
+    periapsis_from_impact_parameter,
+    impact_parameter_from_periapsis,
+    periapsis_from_turn_angle,
+    max_achievable_turn_angle,
+    max_achievable_turn_angle_with_unlimited_burn,
+    check_flyby_feasibility,
+    build_bplane_frame,
+    orbit_normal_from_bvector,
+    bplane_vector,
+    FlybyFeasibility,
 )
 from astra.physics.kernel import PhysicsKernel
 from astra.physics.lambert import (
@@ -87,4 +97,14 @@ __all__ = [
     "compute_flyby_turn_angle",
     "FlybyResult",
     "SAFE_FLYBY_ALTITUDE_KM",
+    "periapsis_from_impact_parameter",
+    "impact_parameter_from_periapsis",
+    "periapsis_from_turn_angle",
+    "max_achievable_turn_angle",
+    "max_achievable_turn_angle_with_unlimited_burn",
+    "check_flyby_feasibility",
+    "build_bplane_frame",
+    "orbit_normal_from_bvector",
+    "bplane_vector",
+    "FlybyFeasibility",
 ]
