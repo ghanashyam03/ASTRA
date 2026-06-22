@@ -6,8 +6,8 @@ from __future__ import annotations
 from astra.physics.ephemeris import (
     EphemerisEngine,
     EphemerisTarget,
-    TargetType,
     resolve_central_body,
+    TargetType,
 )
 
 from astra.physics.exceptions import (
@@ -20,20 +20,20 @@ from astra.physics.exceptions import (
 )
 
 from astra.physics.flyby import (
-    SAFE_FLYBY_ALTITUDE_KM,
-    FlybyFeasibility,
-    FlybyResult,
     bplane_vector,
     build_bplane_frame,
     check_flyby_feasibility,
     compute_flyby,
     compute_flyby_turn_angle,
+    FlybyFeasibility,
+    FlybyResult,
     impact_parameter_from_periapsis,
     max_achievable_turn_angle,
     max_achievable_turn_angle_with_unlimited_burn,
     orbit_normal_from_bvector,
     periapsis_from_impact_parameter,
     periapsis_from_turn_angle,
+    SAFE_FLYBY_ALTITUDE_KM,
 )
 
 from astra.physics.kernel import PhysicsKernel
@@ -106,5 +106,13 @@ __all__ = [
     "periapsis_from_turn_angle",
     "propagate_to_times",
     "propagate_two_body",
+    "PropagationError",
+    "SAFE_FLYBY_ALTITUDE_KM",
+    "Integrator",
+    "InvalidEphemerisError",
+    "lambert_izzo",
+    "lambert_izzo_multirev",
+    "lambert_min_tof_multirev",
+    "orbit_normal_from_bvector",
     "resolve_central_body",
 ]
