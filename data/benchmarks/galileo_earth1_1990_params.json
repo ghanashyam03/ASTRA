@@ -1,0 +1,8 @@
+{
+  "mission": "Galileo",
+  "flyby_body": "EARTH",
+  "date": "1990-12-08",
+  "v_inf_approach_km_s": 8.95,
+  "periapsis_altitude_km": 960.0,
+  "source": "NASA NSSDCA Galileo page (https://nssdca.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1989-084B) - Earth 1 flyby at altitude 960 km, v_inf 8.949 km/s (PRL 2008)"
+}

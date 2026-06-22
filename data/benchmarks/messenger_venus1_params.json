@@ -1,0 +1,8 @@
+{
+  "mission": "MESSENGER",
+  "flyby_body": "VENUS",
+  "date": "2006-10-24",
+  "v_inf_approach_km_s": 9.07,
+  "periapsis_altitude_km": 2990.0,
+  "source": "NASA NSSDCA MESSENGER page (https://nssdca.gsfc.nasa.gov/nmc/spacecraft/display.action?id=2004-030A) - Venus 1 flyby closest approach altitude ~2990 km on Oct 24 2006, v_inf approx 9.07 km/s"
+}
