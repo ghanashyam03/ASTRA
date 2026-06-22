@@ -44,7 +44,7 @@ def decompose_delta_v(trajectory: Trajectory) -> DeltaVDecomposition:
 
     components = [
         DeltaVComponent(
-            label=m.label if m.label else f"Maneuver {i+1}",
+            label=m.label if m.label else f"Maneuver {i + 1}",
             magnitude_km_s=m.magnitude,
             fraction_of_total=m.magnitude / total,
             epoch_j2000=m.epoch,

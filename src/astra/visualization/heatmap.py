@@ -45,9 +45,9 @@ def build_porkchop_plot(
             date_fn = getattr(ephemeris, "date_from_epoch")
             dep_labels = [date_fn(e)[:10] for e in dep_epochs]
         except Exception:
-            dep_labels = [f"J2000+{e/86400:.0f}d" for e in dep_epochs]
+            dep_labels = [f"J2000+{e / 86400:.0f}d" for e in dep_epochs]
     else:
-        dep_labels = [f"J2000+{e/86400:.0f}d" for e in dep_epochs]
+        dep_labels = [f"J2000+{e / 86400:.0f}d" for e in dep_epochs]
 
     finite = dv_grid[np.isfinite(dv_grid)]
     dv_min = float(np.min(finite)) if len(finite) > 0 else 0.0

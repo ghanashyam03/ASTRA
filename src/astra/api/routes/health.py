@@ -51,9 +51,9 @@ async def metrics() -> dict[str, Any]:
 
     try:
         store = get_store()
-        traj_row = store.conn.execute("SELECT COUNT(*)" " FROM trajectories").fetchone()
+        traj_row = store.conn.execute("SELECT COUNT(*) FROM trajectories").fetchone()
         traj_count = traj_row[0] if traj_row else 0
-        run_row = store.conn.execute("SELECT COUNT(*)" " FROM optimization_runs").fetchone()
+        run_row = store.conn.execute("SELECT COUNT(*) FROM optimization_runs").fetchone()
         run_count = run_row[0] if run_row else 0
         result["storage"] = {
             "trajectories": traj_count,

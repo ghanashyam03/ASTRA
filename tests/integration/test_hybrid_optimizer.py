@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_file
 from astra.optimization.engine import (
@@ -31,7 +32,7 @@ def test_hybrid_not_worse_than_bayesian() -> None:
     dv_hyb = r_hyb.best_trajectory.delta_v_total
     print(f"\nBayesian: {dv_bay:.4f} km/s | Hybrid: {dv_hyb:.4f} km/s")
     assert dv_hyb <= dv_bay + 0.05, (
-        f"Hybrid {dv_hyb:.4f} km/s is worse than Bayesian {dv_bay:.4f} by " f"> 0.05 km/s tolerance"
+        f"Hybrid {dv_hyb:.4f} km/s is worse than Bayesian {dv_bay:.4f} by > 0.05 km/s tolerance"
     )
 
     # Assert that all required hybrid run metadata fields exist in result

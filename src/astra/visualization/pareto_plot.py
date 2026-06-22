@@ -73,7 +73,7 @@ def build_pareto_plot(
             try:
                 dep_dates.append(ephemeris.date_from_epoch(t.departure_epoch)[:10])
             except Exception:
-                dep_dates.append(f"J2000+{t.departure_epoch/86400:.0f}d")
+                dep_dates.append(f"J2000+{t.departure_epoch / 86400:.0f}d")
 
     return ParetoPlotData(
         dv_km_s=dvs,

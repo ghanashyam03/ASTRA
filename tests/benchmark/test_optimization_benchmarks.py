@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from astra.dsl.compiler import CompiledMission, compile_mission
 from astra.dsl.parser import parse_mission_string
 from astra.neural.pinn import LambertPINNEnsemble
