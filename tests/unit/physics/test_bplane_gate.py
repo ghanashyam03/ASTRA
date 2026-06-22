@@ -1,15 +1,17 @@
 import math
 import numpy as np
 
+# Local imports – sorted alphabetically and names within the import block sorted
 from astra.physics.flyby import (
-    periapsis_from_impact_parameter,
+    build_bplane_frame,
+    check_flyby_feasibility,
+    compute_flyby_turn_angle,
     impact_parameter_from_periapsis,
-    periapsis_from_turn_angle,
     max_achievable_turn_angle,
     max_achievable_turn_angle_with_unlimited_burn,
-    check_flyby_feasibility,
-    build_bplane_frame,
     orbit_normal_from_bvector,
+    periapsis_from_impact_parameter,
+    periapsis_from_turn_angle,
 )
 from astra.state.orbital_state import GM
 
@@ -26,7 +28,6 @@ def test_periapsis_impact_parameter_roundtrip() -> None:
 
 def test_turn_angle_periapsis_roundtrip() -> None:
     """Closed‑form periapsis‑from‑turn‑angle must match forward turn‑angle calc."""
-    from astra.physics.flyby import compute_flyby_turn_angle
     mu_body = "EARTH"
     v_inf = 6.0
     for target_deg in [10.0, 30.0, 60.0, 90.0]:
