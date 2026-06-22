@@ -7,8 +7,8 @@ from __future__ import annotations
 from astra.physics.ephemeris import (
     EphemerisEngine,
     EphemerisTarget,
-    resolve_central_body,
     TargetType,
+    resolve_central_body,
 )
 
 from astra.physics.exceptions import (
