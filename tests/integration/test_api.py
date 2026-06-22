@@ -4,10 +4,11 @@ from collections.abc import Generator
 
 import numpy as np
 import pytest
+from fastapi.testclient import TestClient
+
 from astra.data.storage import TrajectoryStore
 from astra.state.orbital_state import CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
-from fastapi.testclient import TestClient
 
 EARTH_MARS_YAML = open("data/benchmarks/earth_mars_2031.yaml").read()
 

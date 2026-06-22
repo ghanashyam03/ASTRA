@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import pytest
+
 from astra.physics.exceptions import LambertSingularityError
 from astra.physics.lambert import (
     find_best_transfer,
@@ -120,8 +121,7 @@ def test_find_best_transfer_finds_cheaper_multirev() -> None:
 
     print(f"\nSingle-rev Δv: {sol_0.delta_v:.3f} km/s")
     print(
-        f"Optimal multi-rev Δv: {sol_opt.delta_v:.3f} km/s | "
-        f"{sol_opt.n_revs}-rev {sol_opt.branch}"
+        f"Optimal multi-rev Δv: {sol_opt.delta_v:.3f} km/s | {sol_opt.n_revs}-rev {sol_opt.branch}"
     )
 
     assert sol_opt.delta_v <= sol_0.delta_v, "Optimal transfer must not exceed single-rev Δv cost"

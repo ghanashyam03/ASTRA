@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import numpy as np
+
 from astra.optimization.pareto import (
     compute_pareto_front,
     compute_pareto_quality,

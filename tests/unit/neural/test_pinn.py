@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from astra.neural.pinn import ActiveLearningManager, LambertPINN, LambertPINNEnsemble
 from astra.neural.surrogate import SurrogateMetrics, SurrogateOutput, SurrogatePrediction
 from astra.physics.kernel import PhysicsKernel

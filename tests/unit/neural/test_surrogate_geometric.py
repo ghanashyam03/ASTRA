@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+
 from astra.neural.feasibility import FeasibilityClassifier
 from astra.neural.features import (
     AU,

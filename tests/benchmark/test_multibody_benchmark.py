@@ -7,13 +7,14 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy.optimize import minimize_scalar
+
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_file
 from astra.dsl.schema import ConstraintType, PhysicsModelType
 from astra.physics.flyby import compute_flyby
 from astra.physics.kernel import PhysicsKernel
 from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
-from scipy.optimize import minimize_scalar
 
 SPICE = (Path("data/spice_kernels") / "de440.bsp").exists()
 

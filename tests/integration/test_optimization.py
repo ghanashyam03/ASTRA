@@ -12,6 +12,7 @@ SPICE_AVAILABLE = (Path("data/spice_kernels") / "de440.bsp").exists()
 @pytest.mark.skipif(not SPICE_AVAILABLE, reason="SPICE kernels required")
 def test_porkchop_grid_produces_finite_values() -> None:
     import numpy as np
+
     from astra.dsl.compiler import compile_mission
     from astra.dsl.parser import parse_mission_file
     from astra.optimization.engine import compute_porkchop

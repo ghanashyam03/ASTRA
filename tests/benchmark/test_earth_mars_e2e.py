@@ -150,9 +150,9 @@ def test_neural_accelerated_matches_standard() -> None:
     # Neural result must be within 10% of standard (same quality range)
     dv_std = r_standard.best_trajectory.delta_v_total
     dv_neu = r_neural.best_trajectory.delta_v_total
-    assert (
-        dv_neu < dv_std * 1.10
-    ), f"Neural result {dv_neu:.3f} km/s is >10% worse than standard {dv_std:.3f} km/s"
+    assert dv_neu < dv_std * 1.10, (
+        f"Neural result {dv_neu:.3f} km/s is >10% worse than standard {dv_std:.3f} km/s"
+    )
     print(f"\nStandard: {dv_std:.4f} km/s | Neural: {dv_neu:.4f} km/s")
 
 
@@ -174,6 +174,6 @@ def test_determinism() -> None:
     if r1.converged and r2.converged:
         assert r1.best_trajectory is not None
         assert r2.best_trajectory is not None
-        assert (
-            abs(r1.best_trajectory.delta_v_total - r2.best_trajectory.delta_v_total) < 1e-6
-        ), "Same seed must produce identical best Δv"
+        assert abs(r1.best_trajectory.delta_v_total - r2.best_trajectory.delta_v_total) < 1e-6, (
+            "Same seed must produce identical best Δv"
+        )
