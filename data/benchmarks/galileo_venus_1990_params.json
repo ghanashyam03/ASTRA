@@ -1,0 +1,8 @@
+{
+  "mission": "Galileo",
+  "flyby_body": "VENUS",
+  "date": "1990-02-10",
+  "v_inf_approach_km_s": 8.2,
+  "periapsis_altitude_km": 16106.0,
+  "source": "NASA NSSDCA Galileo page (https://nssdca.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1989-084B) - closest approach altitude of 16,106 km on Feb 10 1990, v_inf approx 8.2 km/s"
+}
