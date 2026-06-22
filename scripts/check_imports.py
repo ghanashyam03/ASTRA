@@ -1,8 +1,8 @@
-import sys
 import re
+import sys
 
 path = sys.argv[1]
-with open(path, 'r', encoding='utf-8') as f:
+with open(path, encoding="utf-8") as f:
     txt = f.read()
 
 pattern = re.compile(r"from\s+[\w\.]+\s+import\s*\((.*?)\)", re.S)
@@ -14,7 +14,7 @@ for m in pattern.finditer(txt):
     for ln in lines:
         # remove trailing comma and inline comments
         ln_clean = re.sub(r"#.*", "", ln).strip()
-        if ln_clean.endswith(','):
+        if ln_clean.endswith(","):
             ln_clean = ln_clean[:-1].strip()
         if not ln_clean:
             continue

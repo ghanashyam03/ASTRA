@@ -20,6 +20,7 @@ Elliptical Capture MOI:
 - Circularization of this ellipse into a circular orbit at apoapsis requires a second, separate
   apoapsis kick burn, which is computed using circularization_delta_v.
 """
+
 from __future__ import annotations
 
 import math
@@ -55,6 +56,7 @@ def departure_delta_v(
     Δv_TMI in km/s
     """
     from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
+
     mu = GM[body.upper()]
     r_body = PHYSICAL_RADIUS[CelestialBody[body.upper()]]
     r_park = r_body + parking_altitude_km
@@ -108,6 +110,7 @@ def arrival_delta_v(
     Δv_MOI in km/s (positive — always a deceleration)
     """
     from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
+
     mu = GM[body.upper()]
     r_body = PHYSICAL_RADIUS[CelestialBody[body.upper()]]
     r_peri = r_body + capture_altitude_km
@@ -146,6 +149,7 @@ def circularization_delta_v(
         Circularization Δv in km/s.
     """
     from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
+
     mu = GM[body.upper()]
     r_body = PHYSICAL_RADIUS[CelestialBody[body.upper()]]
     r_peri = r_body + capture_periapsis_km
@@ -164,4 +168,3 @@ def c3_from_vinf(v_inf: np.ndarray) -> float:
 def hyperbolic_excess_speed(v_sc_helio: np.ndarray, v_body_helio: np.ndarray) -> float:
     """||v_inf|| = ||v_spacecraft - v_body|| [km/s]."""
     return float(np.linalg.norm(v_sc_helio - v_body_helio))
-

@@ -20,9 +20,9 @@ class WindowRationale:
     selected_dv_km_s: float
     departure_date_utc: str
     arrival_date_utc: str
-    c3_km2_s2: float          # departure energy
+    c3_km2_s2: float  # departure energy
     synodic_period_days: float
-    planet_angle_deg: float   # phase angle at departure
+    planet_angle_deg: float  # phase angle at departure
     rationale_points: list[str]
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,13 +37,19 @@ class WindowRationale:
             "rationale": self.rationale_points,
         }
 
+
 def compute_synodic_period(body1: CelestialBody, body2: CelestialBody) -> float:
     """Synodic period in days between two planets orbiting the Sun."""
     # Approximate semi-major axes from Kepler's 3rd law using known periods
     PERIOD_DAYS: dict[str, float] = {
-        "MERCURY": 87.97, "VENUS": 224.70, "EARTH": 365.25,
-        "MARS": 686.97, "JUPITER": 4332.6, "SATURN": 10759.2,
-        "URANUS": 30688.5, "NEPTUNE": 60182.0,
+        "MERCURY": 87.97,
+        "VENUS": 224.70,
+        "EARTH": 365.25,
+        "MARS": 686.97,
+        "JUPITER": 4332.6,
+        "SATURN": 10759.2,
+        "URANUS": 30688.5,
+        "NEPTUNE": 60182.0,
     }
     T1 = PERIOD_DAYS.get(body1.value, 365.25)
     T2 = PERIOD_DAYS.get(body2.value, 686.97)
@@ -51,10 +57,12 @@ def compute_synodic_period(body1: CelestialBody, body2: CelestialBody) -> float:
         return float("inf")
     return abs(1.0 / (1.0 / T1 - 1.0 / T2))
 
+
 def compute_c3(v_spacecraft_helio: np.ndarray, v_body_helio: np.ndarray) -> float:
     """C3 = |v_inf|² = |v_sc - v_body|² [km²/s²]."""
     v_inf = v_spacecraft_helio - v_body_helio
     return float(np.dot(v_inf, v_inf))
+
 
 def build_window_rationale(
     trajectory: Trajectory,

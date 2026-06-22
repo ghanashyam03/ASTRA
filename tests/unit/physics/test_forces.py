@@ -2,7 +2,6 @@ import math
 
 import numpy as np
 import pytest
-
 from astra.physics.forces.drag import AtmosphericDrag
 from astra.physics.forces.gravity import J2_CONSTANTS, ForceModel, J2Perturbation, PointMassGravity
 from astra.physics.forces.srp import SolarRadiationPressure
@@ -49,7 +48,7 @@ def test_j2_perturbation() -> None:
     # 1. Equatorial orbit (z = 0)
     state_eq = np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0], dtype=np.float64)
     a_eq = j2_model.acceleration(state_eq, 0.0)
-    
+
     # At z = 0, z-acceleration must be zero
     assert abs(a_eq[2]) < 1e-15
     # Radial perturbation: ax should be in opposite direction of x (pulling inwards)
@@ -61,7 +60,7 @@ def test_j2_perturbation() -> None:
     # 2. Polar position (x = 0, y = 0, z = r)
     state_pol = np.array([0.0, 0.0, 7000.0, 7.5, 0.0, 0.0], dtype=np.float64)
     a_pol = j2_model.acceleration(state_pol, 0.0)
-    
+
     # In polar position, x and y accelerations must be zero
     assert abs(a_pol[0]) < 1e-15
     assert abs(a_pol[1]) < 1e-15

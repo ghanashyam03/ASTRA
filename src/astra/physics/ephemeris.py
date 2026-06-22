@@ -17,14 +17,17 @@ if TYPE_CHECKING:
 # J2000 epoch offset: 2000-01-01 12:00:00 TDB in seconds from J2000.0
 J2000_EPOCH = 0.0
 
+
 class TargetType(StrEnum):
     BODY_CENTER = "BODY_CENTER"
     BARYCENTER = "BARYCENTER"
+
 
 @dataclass
 class EphemerisTarget:
     body: CelestialBody
     target_type: TargetType = TargetType.BODY_CENTER
+
 
 def resolve_central_body(observer: CelestialBody | EphemerisTarget | str) -> CelestialBody:
     """Resolve gravitational central body from an observer to separate
@@ -34,7 +37,7 @@ def resolve_central_body(observer: CelestialBody | EphemerisTarget | str) -> Cel
         return observer.body
     if isinstance(observer, CelestialBody):
         return observer
-    
+
     obs_upper = observer.upper().strip()
     if "SUN" in obs_upper:
         return CelestialBody.SUN
@@ -44,15 +47,16 @@ def resolve_central_body(observer: CelestialBody | EphemerisTarget | str) -> Cel
         return CelestialBody.MOON
     if "MARS" in obs_upper:
         return CelestialBody.MARS
-    
+
     # Safe fallbacks for other standard planets
     for body in CelestialBody:
         if body.value in obs_upper:
             return body
-            
+
     raise InvalidEphemerisError(
         f"Cannot resolve gravitational central body from observer: {observer}"
     )
+
 
 class EphemerisEngine:
     """Manages SPICE kernels and provides planetary state queries with barycenter safety."""
@@ -150,10 +154,10 @@ class EphemerisEngine:
         from the observer frame.
         """
         self._check_loaded()
-        
+
         target_name = self._resolve_spice_name(target)
         observer_name = self._resolve_observer_name(observer)
-        
+
         if self.cache is not None:
             cached = self.cache.get(target_name, epoch_j2000, frame, observer_name)
             if cached is not None:
@@ -190,7 +194,7 @@ class EphemerisEngine:
 
         pos = np.asarray(state[:3], dtype=np.float64)
         vel = np.asarray(state[3:], dtype=np.float64)
-        
+
         assert pos.dtype == np.float64, "position must be np.float64"
         assert vel.dtype == np.float64, "velocity must be np.float64"
 

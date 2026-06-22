@@ -3,10 +3,19 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
+      - name: Auto-fix and format
+        run: |
+          uv run ruff check --fix src tests || true
+          uv run ruff format src tests || true
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-fix lint and formatting"
       - run: uv run ruff check src tests
       - run: uv run mypy src
       - run: uv run pytest tests/ -v --cov=src/astra --cov-report=term-missing

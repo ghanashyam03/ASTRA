@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 # --- NEW CLASSES & FUNCTIONS (PART B) ---
 
+
 @dataclass
 class SensitivityPoint:
     parameter_name: str
@@ -24,9 +25,9 @@ class SensitivityPoint:
     perturbation_step: float
     units: str
     baseline_dv: float
-    dv_plus: float         # f(x + h)
-    dv_minus: float        # f(x - h)
-    gradient: float        # central difference: (f_plus - f_minus) / (2*h)
+    dv_plus: float  # f(x + h)
+    dv_minus: float  # f(x - h)
+    gradient: float  # central difference: (f_plus - f_minus) / (2*h)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -39,6 +40,7 @@ class SensitivityPoint:
             "dv_minus": round(self.dv_minus, 6),
             "gradient_km_s_per_unit": round(self.gradient, 8),
         }
+
 
 @dataclass
 class TrajectorySensitivity:
@@ -53,6 +55,7 @@ class TrajectorySensitivity:
             "sensitivities": [p.to_dict() for p in self.points],
         }
 
+
 def central_difference(
     f: Callable[[float], float],
     x0: float,
@@ -60,6 +63,7 @@ def central_difference(
 ) -> tuple[float, float, float]:
     """Compute f(x0), f(x0+h), f(x0-h). Returns (f0, f_plus, f_minus)."""
     return f(x0), f(x0 + h), f(x0 - h)
+
 
 def analyze_sensitivity(
     trajectory: Trajectory,
@@ -71,7 +75,7 @@ def analyze_sensitivity(
     """Compute sensitivity of optimal trajectory Δv with respect to:
     1. Departure epoch (±dep_step_days)
     2. Time of flight (±tof_step_days)
-    
+
     Uses central finite differences at the optimal point. All evaluations
     call evaluate_transfer() with full SOI patching — no physics shortcuts.
     Returns 99.0 for infeasible perturbations (same convention as optimizer).
@@ -94,7 +98,13 @@ def analyze_sensitivity(
             r2 = kernel.get_body_state(mission.destination_body, arr).position
             v2 = kernel.get_body_state(mission.destination_body, arr).velocity
             tr = evaluate_transfer(
-                r1, v1, r2, v2, dep, tof0, mu_sun,
+                r1,
+                v1,
+                r2,
+                v2,
+                dep,
+                tof0,
+                mu_sun,
                 origin_body=mission.origin_body.name,
                 destination_body=mission.destination_body.name,
                 parking_altitude_km=mission.parking_altitude_km,
@@ -112,7 +122,13 @@ def analyze_sensitivity(
             r2 = kernel.get_body_state(mission.destination_body, arr).position
             v2 = kernel.get_body_state(mission.destination_body, arr).velocity
             tr = evaluate_transfer(
-                r1, v1, r2, v2, dep0, tof, mu_sun,
+                r1,
+                v1,
+                r2,
+                v2,
+                dep0,
+                tof,
+                mu_sun,
                 origin_body=mission.origin_body.name,
                 destination_body=mission.destination_body.name,
                 parking_altitude_km=mission.parking_altitude_km,
@@ -163,15 +179,16 @@ def analyze_sensitivity(
 
 # --- DEPRECATED/OLD CLASSES & FUNCTIONS FOR BACKWARD COMPATIBILITY ---
 
+
 @dataclass
 class SensitivityResult:
     parameter_name: str
     baseline_value: float
     baseline_dv: float
     perturbation_step: float
-    dv_plus: float          # f(x + h)
-    dv_minus: float         # f(x - h)
-    central_gradient: float # (f(x+h) - f(x-h)) / (2h)
+    dv_plus: float  # f(x + h)
+    dv_minus: float  # f(x - h)
+    central_gradient: float  # (f(x+h) - f(x-h)) / (2h)
     sensitivity_label: str  # human-readable units
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -188,9 +205,11 @@ class SensitivityResult:
             "metadata": self.metadata,
         }
 
+
 @dataclass
 class TrajectoryParameterSensitivity:
     """Complete sensitivity analysis for a trajectory."""
+
     mission_id: str
     sensitivities: list[SensitivityResult]
 
@@ -199,6 +218,7 @@ class TrajectoryParameterSensitivity:
             "mission_id": self.mission_id,
             "sensitivities": [s.to_dict() for s in self.sensitivities],
         }
+
 
 def compute_sensitivity(
     objective_fn: Callable[[float], float],
@@ -258,6 +278,7 @@ def compute_sensitivity(
         metadata=meta,
     )
 
+
 def analyze_trajectory_sensitivity(
     trajectory: Trajectory,
     mission: CompiledMission,
@@ -283,7 +304,13 @@ def analyze_trajectory_sensitivity(
             r2 = kernel.get_body_state(mission.destination_body, arr).position
             v2 = kernel.get_body_state(mission.destination_body, arr).velocity
             t = evaluate_transfer(
-                r1, v1, r2, v2, dep0, tof, mu_sun,
+                r1,
+                v1,
+                r2,
+                v2,
+                dep0,
+                tof,
+                mu_sun,
                 origin_body=mission.origin_body.name,
                 destination_body=mission.destination_body.name,
                 parking_altitude_km=mission.parking_altitude_km,
@@ -303,7 +330,13 @@ def analyze_trajectory_sensitivity(
             r2 = kernel.get_body_state(mission.destination_body, arr).position
             v2 = kernel.get_body_state(mission.destination_body, arr).velocity
             t = evaluate_transfer(
-                r1, v1, r2, v2, dep, tof0, mu_sun,
+                r1,
+                v1,
+                r2,
+                v2,
+                dep,
+                tof0,
+                mu_sun,
                 origin_body=mission.origin_body.name,
                 destination_body=mission.destination_body.name,
                 parking_altitude_km=mission.parking_altitude_km,
@@ -317,13 +350,9 @@ def analyze_trajectory_sensitivity(
 
     step_day = 86400.0  # 1-day step
     sensitivities = [
+        compute_sensitivity(dv_vs_tof, tof0, step_day, "tof", "km/s per day of TOF change"),
         compute_sensitivity(
-            dv_vs_tof, tof0, step_day, "tof",
-            "km/s per day of TOF change"
-        ),
-        compute_sensitivity(
-            dv_vs_dep, dep0, step_day, "departure_epoch",
-            "km/s per day of departure shift"
+            dv_vs_dep, dep0, step_day, "departure_epoch", "km/s per day of departure shift"
         ),
     ]
 

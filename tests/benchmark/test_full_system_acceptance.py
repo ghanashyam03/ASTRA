@@ -14,6 +14,7 @@ Layers tested:
   7. Sensitivity Analysis — TOF gradient direction
   8. Data Persistence — store and retrieve from DuckDB
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -41,8 +42,7 @@ def test_full_system_acceptance() -> None:
     kernel = PhysicsKernel().load()
     assert kernel._kernels_loaded, "L1 FAIL: SPICE kernels not loaded"
     earth_state = kernel.get_body_state(
-        __import__("astra.state.orbital_state", fromlist=["CelestialBody"]).CelestialBody.EARTH,
-        0.0
+        __import__("astra.state.orbital_state", fromlist=["CelestialBody"]).CelestialBody.EARTH, 0.0
     )
     assert 1.4e8 < earth_state.r < 1.6e8, f"L1 FAIL: Earth r={earth_state.r:.3e} km"
     print(f"L1 PASS: Earth at J2000: r={earth_state.r:.3e} km")
@@ -57,8 +57,8 @@ def test_full_system_acceptance() -> None:
 
     # ─── Layer 3+4: Optimization Engine ─────────────────────────────────────
     result = optimize_mission_hybrid(
-        mission, kernel, n_trials_bayesian=800, n_refine_top_k=3,
-        time_limit=90.0, seed=42)
+        mission, kernel, n_trials_bayesian=800, n_refine_top_k=3, time_limit=90.0, seed=42
+    )
     assert result.converged, "L4 FAIL: Optimizer did not converge"
     best = result.best_trajectory
     assert best is not None, "L4 FAIL: Best trajectory is None"
@@ -73,19 +73,24 @@ def test_full_system_acceptance() -> None:
 
     # ─── Layer 3: Constraint Engine ─────────────────────────────────────────
     import dataclasses
+
     test_propulsion = dataclasses.replace(mission.spacecraft.propulsion, propellant_mass_kg=10000.0)
     test_spacecraft = dataclasses.replace(mission.spacecraft, propulsion=test_propulsion)
     report = evaluate_all_constraints(best, mission, test_spacecraft)
-    assert report.is_hard_feasible, (
-        f"L3 FAIL: Hard constraint violated: {[v.constraint_type for v in report.hard_violations]}")
+    assert (
+        report.is_hard_feasible
+    ), f"L3 FAIL: Hard constraint violated: {[v.constraint_type for v in report.hard_violations]}"
     print(f"L3 PASS: All {len(report.physical_results)} constraints satisfied")
 
     # ─── Layer 5: Explainability Engine ─────────────────────────────────────
-    trace = explain(best, mission, pareto_front=result.pareto_front,
-                    ephemeris=kernel.ephemeris)
+    trace = explain(best, mission, pareto_front=result.pareto_front, ephemeris=kernel.ephemeris)
     trace_dict = trace.to_dict()
-    for key in ["delta_v_decomposition", "constraint_analysis",
-                "window_rationale", "pareto_analysis"]:
+    for key in [
+        "delta_v_decomposition",
+        "constraint_analysis",
+        "window_rationale",
+        "pareto_analysis",
+    ]:
         assert key in trace_dict, f"L5 FAIL: Missing key: {key}"
     assert trace_dict["delta_v_decomposition"]["total_km_s"] > 0
     assert trace_dict["window_rationale"]["c3_km2_s2"] > 0
@@ -106,8 +111,9 @@ def test_full_system_acceptance() -> None:
     tof_sens = next(p for p in sensitivity.points if p.parameter_name == "time_of_flight")
     # Near optimal: reducing TOF should increase Δv (gradient should be negative
     # meaning f(x-h) > f(x+h), so central diff is negative)
-    assert abs(tof_sens.gradient) < 0.01, (
-        f"L7 FAIL: TOF sensitivity gradient {tof_sens.gradient:.6f} seems too large")
+    assert (
+        abs(tof_sens.gradient) < 0.01
+    ), f"L7 FAIL: TOF sensitivity gradient {tof_sens.gradient:.6f} seems too large"
     print(f"L7 PASS: TOF sensitivity: {tof_sens.gradient:.6f} km/s per day")
 
     # ─── Layer 8: Data Persistence ───────────────────────────────────────────
@@ -123,9 +129,9 @@ def test_full_system_acceptance() -> None:
     print(f"L8 PASS: Trajectory stored and retrieved: id={tid[:8]}...")
 
     # ─── Final summary ────────────────────────────────────────────────────────
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("ASTRA FULL SYSTEM ACCEPTANCE TEST PASSED")
-    print("="*70)
+    print("=" * 70)
     print("  L1 Physics:       Earth ephemeris OK")
     print("  L2 DSL:           Mission compiled OK")
     print("  L3 Constraints:   All satisfied")
@@ -135,4 +141,4 @@ def test_full_system_acceptance() -> None:
     print(f"  L6 Pareto:        Size={quality.n_solutions}, HVI={hvi_val:.4f}")
     print(f"  L7 Sensitivity:   TOF gradient={tof_sens.gradient:.6f} km/s/day")
     print("  L8 Persistence:   Store/retrieve OK")
-    print("="*70)
+    print("=" * 70)

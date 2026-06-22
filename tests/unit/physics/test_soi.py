@@ -1,7 +1,6 @@
 import math
 
 import numpy as np
-
 from astra.physics.maneuvers import arrival_delta_v, c3_from_vinf, departure_delta_v
 from astra.physics.soi import compute_soi_radius, is_in_soi
 
@@ -49,13 +48,14 @@ def test_soi_patching_increases_delta_v() -> None:
     """SOI-patched Δv must exceed heliocentric Δv (parking orbit adds cost)."""
     from astra.physics.lambert import lambert_izzo
     from astra.state.orbital_state import GM
+
     MU = GM["SUN"]
     EARTH_R, MARS_R = 1.496e8, 2.279e8
     r1 = np.array([EARTH_R, 0.0, 0.0])
     angle = 179.0 * math.pi / 180.0
     r2 = MARS_R * np.array([math.cos(angle), math.sin(angle), 0.0])
-    v1_body = np.array([0.0, math.sqrt(MU/EARTH_R), 0.0])
-    v2_body = math.sqrt(MU/MARS_R) * np.array([-math.sin(angle), math.cos(angle), 0.0])
+    v1_body = np.array([0.0, math.sqrt(MU / EARTH_R), 0.0])
+    v2_body = math.sqrt(MU / MARS_R) * np.array([-math.sin(angle), math.cos(angle), 0.0])
     v_dep, v_arr, _ = lambert_izzo(r1, r2, 258.5 * 86400.0, MU)
     # Heliocentric Δv
     dv_helio = float(np.linalg.norm(v_dep - v1_body) + np.linalg.norm(v2_body - v_arr))
@@ -63,8 +63,7 @@ def test_soi_patching_increases_delta_v() -> None:
     dv_tmi = departure_delta_v(v_dep - v1_body, 200.0, "EARTH")
     dv_moi = arrival_delta_v(v2_body - v_arr, 300.0, "MARS")
     dv_soi = dv_tmi + dv_moi
-    assert dv_soi > dv_helio, (
-        f"SOI Δv {dv_soi:.4f} must exceed heliocentric {dv_helio:.4f} km/s")
+    assert dv_soi > dv_helio, f"SOI Δv {dv_soi:.4f} must exceed heliocentric {dv_helio:.4f} km/s"
     # Difference should be positive
     delta = dv_soi - dv_helio
     assert 0.0 < delta < 2.0, f"SOI overhead {delta:.4f} km/s seems wrong"
@@ -75,6 +74,6 @@ def test_is_in_soi() -> None:
     r_sc = np.array([EARTH_SMA := 1.496e8, 500_000.0, 0.0])
     r_earth = np.array([EARTH_SMA, 0.0, 0.0])
     assert is_in_soi(r_sc, r_earth, "EARTH")
-    
+
     r_sc_far = np.array([EARTH_SMA, 2_000_000.0, 0.0])
     assert not is_in_soi(r_sc_far, r_earth, "EARTH")

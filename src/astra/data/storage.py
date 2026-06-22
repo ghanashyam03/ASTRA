@@ -1,4 +1,5 @@
 """DuckDB-based storage for trajectories and optimization results."""
+
 from __future__ import annotations
 
 import json
@@ -67,7 +68,8 @@ class TrajectoryStore:
                 trajectory_json, explanation_json, tags
             ) VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
-                tid, mission_id,
+                tid,
+                mission_id,
                 trajectory.departure_epoch,
                 trajectory.duration_days,
                 trajectory.delta_v_total,
@@ -102,8 +104,16 @@ class TrajectoryStore:
                ORDER BY delta_v_total_km_s ASC LIMIT ?""",
             [mission_id, limit],
         ).fetchall()
-        keys = ["id", "mission_id", "departure_epoch", "tof_days",
-                "delta_v_km_s", "duration_days", "feasible", "created_at"]
+        keys = [
+            "id",
+            "mission_id",
+            "departure_epoch",
+            "tof_days",
+            "delta_v_km_s",
+            "duration_days",
+            "feasible",
+            "created_at",
+        ]
         return [dict(zip(keys, r)) for r in rows]
 
     def save_optimization_run(
@@ -119,7 +129,8 @@ class TrajectoryStore:
                 n_feasible, wall_time_s, converged, best_trajectory_id, result_json
             ) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)""",
             [
-                rid, mission_id,
+                rid,
+                mission_id,
                 result_dict.get("n_evaluations", 0),
                 result_dict.get("n_feasible", 0),
                 result_dict.get("wall_time_s", 0.0),

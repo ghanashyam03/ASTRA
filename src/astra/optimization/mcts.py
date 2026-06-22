@@ -4,6 +4,7 @@ Each node represents a mission phase state (current body, current epoch,
 current heliocentric velocity). MCTS explores flyby body sequences and
 evaluates them using Lambert + SOI computation.
 """
+
 from __future__ import annotations
 
 import math
@@ -25,7 +26,7 @@ class PhaseState:
     body: str
     epoch: float
     v_helio: np.ndarray  # spacecraft heliocentric velocity after arrival/departure [km/s]
-    dv_spent: float      # cumulative delta-v spent [km/s]
+    dv_spent: float  # cumulative delta-v spent [km/s]
     predicted_dv: float = 0.0
     uncertainty: float = 0.0
 
@@ -57,9 +58,8 @@ class MCTSResult:
                     for p in path
                 ]
                 for path in self.all_paths
-            ]
+            ],
         }
-
 
 
 class MCTSNode:
@@ -131,6 +131,7 @@ class MCTSPlanner:
         Returns an MCTSResult containing the search outcomes.
         """
         import time
+
         start_time = time.perf_counter()
 
         for _ in range(self.n_iterations):
@@ -155,7 +156,8 @@ class MCTSPlanner:
         self._collect_paths(self.root, [], all_paths)
 
         valid_paths = [
-            p for p in all_paths
+            p
+            for p in all_paths
             if p[-1].body == self.destination_body and p[-1].dv_spent <= self.dv_budget
         ]
         valid_paths.sort(key=lambda p: p[-1].dv_spent)
@@ -302,6 +304,7 @@ class MCTSPlanner:
             return None
 
         from astra.physics.lambert import find_best_transfer
+
         try:
             sol = find_best_transfer(
                 r1=r1,
@@ -320,6 +323,7 @@ class MCTSPlanner:
         # Compute delta-v cost
         if state.body == self.origin_body and state.dv_spent == 0.0:
             from astra.physics.maneuvers import departure_delta_v
+
             h_park = 200.0
             v_inf_dep = v_dep - v1_body
             dv_cost = departure_delta_v(v_inf_dep, h_park, state.body)
@@ -341,6 +345,7 @@ class MCTSPlanner:
             )
 
             from astra.physics.flyby import compute_flyby
+
             flyby_result = compute_flyby(
                 v_inf_in=v_inf_in_vec,
                 periapsis_km=r_p,
@@ -356,6 +361,7 @@ class MCTSPlanner:
 
         if next_body == self.destination_body:
             from astra.physics.maneuvers import arrival_delta_v
+
             h_cap = 300.0
             v_inf_arr = v2_body - v_arr
             dv_cap = arrival_delta_v(v_inf_arr, h_cap, next_body)
@@ -368,10 +374,10 @@ class MCTSPlanner:
             try:
                 from astra.explainability.window_rationale import compute_synodic_period
                 from astra.neural.features import build_geometric_features
-                
+
                 syn_days = compute_synodic_period(body_from, body_to)
                 synodic_period_s = syn_days * 86400.0 if syn_days != float("inf") else 0.0
-                
+
                 feat = build_geometric_features(
                     dep_epoch=state.epoch,
                     tof_seconds=tof_seconds,
@@ -417,6 +423,7 @@ class MCTSPlanner:
         from astra.physics.flyby import (
             check_flyby_feasibility,
         )
+
         feas = check_flyby_feasibility(v_inf_in_mag, target_turn_angle_rad, body)
         if feas.solved_periapsis_km is not None:
             return feas.solved_periapsis_km

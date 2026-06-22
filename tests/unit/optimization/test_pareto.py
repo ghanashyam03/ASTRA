@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import numpy as np
-
 from astra.optimization.pareto import (
     compute_pareto_front,
     compute_pareto_quality,
@@ -71,7 +70,7 @@ def test_compute_pareto_quality() -> None:
     t2 = MagicMock(spec=Trajectory)
     t2.delta_v_total = 4.0
     t2.duration_days = 12.0
-    
+
     metrics = compute_pareto_quality([t1, t2])
     assert metrics.n_solutions == 2
     assert metrics.dv_range_km_s == (4.0, 5.0)

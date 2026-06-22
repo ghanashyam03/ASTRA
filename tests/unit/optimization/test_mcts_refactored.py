@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_file
 from astra.optimization.engine import optimize_mission_mcts
@@ -87,11 +86,13 @@ def test_optimize_mission_mcts() -> None:
 def test_surrogate_guided_mcts() -> None:
     """Verify that surrogate-guided MCTS executes and applies uncertainty penalties."""
     import numpy as np
+
     kernel = PhysicsKernel().load()
     dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
     mission = compile_mission(dsl, kernel.ephemeris)
 
     from astra.neural.pinn import LambertPINNEnsemble
+
     surrogate = LambertPINNEnsemble(hidden_dims=[8], ensemble_size=2)
     x_dummy = np.random.randn(5, 8).astype(np.float32)
     y_dummy = np.random.randn(5, 6).astype(np.float32)

@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from astra.neural.pinn import ActiveLearningManager, LambertPINN, LambertPINNEnsemble
 from astra.neural.surrogate import SurrogateMetrics, SurrogateOutput, SurrogatePrediction
 from astra.physics.kernel import PhysicsKernel
@@ -168,19 +167,16 @@ def test_active_learning() -> None:
         )
 
     import typing
+
     typing.cast(typing.Any, surrogate).predict = mock_predict
 
     # Sample 1
-    manager.query_and_learn(
-        feat1, CelestialBody.EARTH, CelestialBody.MARS, 0.0, 200 * 86400.0
-    )
+    manager.query_and_learn(feat1, CelestialBody.EARTH, CelestialBody.MARS, 0.0, 200 * 86400.0)
     assert len(manager.x_buffer) == 1
     assert manager.new_samples_count == 1
 
     # Sample 2 (triggers retraining)
-    manager.query_and_learn(
-        feat2, CelestialBody.EARTH, CelestialBody.MARS, 0.0, 200 * 86400.0
-    )
+    manager.query_and_learn(feat2, CelestialBody.EARTH, CelestialBody.MARS, 0.0, 200 * 86400.0)
     assert len(manager.x_buffer) == 2
     assert manager.new_samples_count == 0
     assert surrogate.is_trained()
@@ -199,6 +195,7 @@ def test_trajectory_validation() -> None:
     r2_state = kernel.get_body_state(CelestialBody.MARS, dep_epoch + tof)
 
     from astra.physics.lambert import find_best_transfer
+
     sol = find_best_transfer(
         r1=r1_state.position,
         v1_body=r1_state.velocity,
@@ -210,6 +207,7 @@ def test_trajectory_validation() -> None:
     )
 
     from astra.physics.maneuvers import arrival_delta_v, departure_delta_v
+
     v_inf_dep = sol.v1 - r1_state.velocity
     v_inf_arr = r2_state.velocity - sol.v2
     dv1 = departure_delta_v(v_inf_dep, 200.0, "EARTH")
@@ -245,7 +243,7 @@ def test_trajectory_validation() -> None:
         metadata={
             "parking_altitude_km": 200.0,
             "capture_altitude_km": 300.0,
-        }
+        },
     )
 
     res = kernel.validate_trajectory(traj, pos_tol_km=5000.0, dv_tol_kms=0.1)

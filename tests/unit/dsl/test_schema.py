@@ -26,35 +26,45 @@ objectives:
     direction: minimize
 """
 
+
 def test_valid_yaml_parses() -> None:
     from astra.dsl.parser import parse_mission_string
+
     m = parse_mission_string(VALID_YAML_TEXT)
     assert m.mission_id == "test_mission"
     assert m.spacecraft.name == "TestCraft"
+
 
 def test_invalid_mass_raises() -> None:
     bad = VALID_YAML_TEXT.replace("dry_mass_kg: 1000.0", "dry_mass_kg: -5.0")
     with pytest.raises(ValidationError):
         from astra.dsl.parser import parse_mission_string
+
         parse_mission_string(bad)
 
+
 def test_invalid_window_raises() -> None:
-    bad = VALID_YAML_TEXT.replace("end: \"2031-01-01", "end: \"2029-01-01")
+    bad = VALID_YAML_TEXT.replace('end: "2031-01-01', 'end: "2029-01-01')
     with pytest.raises(ValidationError):
         from astra.dsl.parser import parse_mission_string
+
         parse_mission_string(bad)
+
 
 def test_reference_mission_parses() -> None:
     from astra.dsl.parser import parse_mission_file
+
     m = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
     assert m.mission_id == "earth_mars_2031_fuel_optimal"
     assert m.spacecraft.fuel_mass_kg == 2400.0
     assert len(m.constraints) == 2
     assert len(m.objectives) == 2
 
+
 def test_compiler_produces_mission() -> None:
     from astra.dsl.compiler import compile_mission
     from astra.dsl.parser import parse_mission_string
+
     m = parse_mission_string(VALID_YAML_TEXT)
     compiled = compile_mission(m)
     assert compiled.mission_id == "test_mission"

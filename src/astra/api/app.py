@@ -1,4 +1,5 @@
 """ASTRA FastAPI application. Zero physics logic in this file."""
+
 from __future__ import annotations
 
 import logging

@@ -3,6 +3,7 @@ Given two position vectors and time of flight, returns the
 initial and final velocity vectors for the connecting conic arc.
 Reference: Izzo, D. (2015). Revisiting Lambert's problem.
 Celestial Mechanics and Dynamical Astronomy, 121(1), 1-15."""
+
 from __future__ import annotations
 
 import math
@@ -187,11 +188,12 @@ def lambert_izzo(
 @dataclass
 class LambertSolution:
     """Represents the optimal transfer trajectory solution."""
-    v1: np.ndarray        # Transfer departure velocity [km/s] (float64)
-    v2: np.ndarray        # Transfer arrival velocity [km/s] (float64)
-    n_revs: int           # Number of revolutions
-    branch: str           # "low", "high", or "single"
-    delta_v: float        # Total Δv in km/s
+
+    v1: np.ndarray  # Transfer departure velocity [km/s] (float64)
+    v2: np.ndarray  # Transfer arrival velocity [km/s] (float64)
+    n_revs: int  # Number of revolutions
+    branch: str  # "low", "high", or "single"
+    delta_v: float  # Total Δv in km/s
 
 
 def _compute_t_and_derivatives(x: float, ll: float, n: int) -> tuple[float, float, float, float]:
@@ -200,17 +202,17 @@ def _compute_t_and_derivatives(x: float, ll: float, n: int) -> tuple[float, floa
     arg = x * y + ll * (1.0 - x**2)
     arg = max(-1.0, min(1.0, arg))
     psi = math.acos(arg) + n * math.pi
-    
+
     denom = 1.0 - x**2
     if abs(denom) < 1e-12:
         denom = 1e-12 if denom >= 0 else -1e-12
-        
+
     T_ = (psi / math.sqrt(1.0 - x**2) - x + ll * y) / denom
-    
+
     fder = (3.0 * T_ * x - 2.0 + 2.0 * ll**3 * x / y) / denom
     fder2 = (3.0 * T_ + 5.0 * x * fder + 2.0 * (1.0 - ll**2) * ll**3 / y**3) / denom
     fder3 = (7.0 * x * fder2 + 8.0 * fder - 6.0 * (1.0 - ll**2) * ll**5 * x / y**5) / denom
-    
+
     return T_, fder, fder2, fder3
 
 
@@ -221,7 +223,7 @@ def lambert_min_tof_multirev(
     tol: float = 1e-12,
 ) -> tuple[float, float]:
     """Compute x_min and non-dimensional T_min for N-revolution transfer.
-    
+
     Uses Halley iterations on fder = 0 to find the turning point.
     """
     x = -0.5  # Robust initial guess for x_min
@@ -236,11 +238,11 @@ def lambert_min_tof_multirev(
             x_new = -0.999
         elif x_new >= 0.999:
             x_new = 0.999
-        
+
         x = x_new
         if abs(dx) < tol:
             break
-            
+
     T_min, _, _, _ = _compute_t_and_derivatives(x, ll, n)
     return x, T_min
 
@@ -257,7 +259,7 @@ def lambert_izzo_multirev(
     tol: float = 1e-12,
 ) -> tuple[np.ndarray, np.ndarray, bool]:
     """Solve the multi-revolution Lambert problem via Izzo's universal variable method.
-    
+
     Raises
     ------
     LambertSingularityError : if transfer geometry is singular or T < T_min.
@@ -419,7 +421,7 @@ def find_best_transfer(
     tol: float = 1e-12,
 ) -> LambertSolution:
     """Find the optimal transfer (minimum delta-v) across N=0 and N >= 1 multi-rev branches.
-    
+
     Parameters
     ----------
     r1       : initial position vector [km]
@@ -432,12 +434,12 @@ def find_best_transfer(
     retrograde: prograde/retrograde toggle
     max_iter : max iterations for root-finders
     tol      : convergence tolerance
-    
+
     Returns
     -------
     LambertSolution
         The best trajectory solution found.
-        
+
     Raises
     ------
     LambertSingularityError : if no valid transfer can be found.
@@ -468,7 +470,7 @@ def find_best_transfer(
     r2_norm = float(np.linalg.norm(r2))
     c_norm = float(np.linalg.norm(r2 - r1))
     s = (r1_norm + r2_norm + c_norm) * 0.5
-    
+
     # Non-dimensional time of flight
     T = math.sqrt(2.0 * mu / s**3) * tof
 

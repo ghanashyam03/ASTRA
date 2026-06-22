@@ -1,6 +1,7 @@
 """Two-body and n-body numerical orbital propagator with a pluggable
 integrator architecture and physics-hardened collision checks.
 """
+
 from __future__ import annotations
 
 import time
@@ -20,6 +21,7 @@ from astra.state.orbital_state import PHYSICAL_RADIUS, OrbitalState
 @dataclass
 class IntegrationResult:
     """Standardized results of numerical orbit integration."""
+
     t: np.ndarray
     y: np.ndarray
     success: bool
@@ -41,7 +43,7 @@ class Integrator(ABC):
         rtol: float,
         atol: float,
         t_eval: np.ndarray | None = None,
-        **options: Any  # noqa: ANN401
+        **options: Any,  # noqa: ANN401
     ) -> IntegrationResult:
         """Solve initial value problem for the given differential equations."""
         pass
@@ -58,7 +60,7 @@ class RK45Integrator(Integrator):
         rtol: float,
         atol: float,
         t_eval: np.ndarray | None = None,
-        **options: Any  # noqa: ANN401
+        **options: Any,  # noqa: ANN401
     ) -> IntegrationResult:
         sol = solve_ivp(
             fun,
@@ -69,7 +71,7 @@ class RK45Integrator(Integrator):
             atol=atol,
             t_eval=t_eval,
             dense_output=False,
-            **options
+            **options,
         )
         nsteps = len(sol.t) if sol.success else 0
         return IntegrationResult(
@@ -79,13 +81,11 @@ class RK45Integrator(Integrator):
             message=sol.message,
             nfev=sol.nfev,
             njev=sol.njev,
-            nsteps=nsteps
+            nsteps=nsteps,
         )
 
 
-def two_body_ode(
-    t: float, y: np.ndarray, mu: float
-) -> np.ndarray:
+def two_body_ode(t: float, y: np.ndarray, mu: float) -> np.ndarray:
     """Two-body equations of motion: ÿ = -μ/|r|³ × r.
     Enforces np.float64 precision and checks for singularity limits.
     """
@@ -94,7 +94,7 @@ def two_body_ode(
     if r_norm < 1e-6:
         # Prevent division by zero / singularity crash in derivatives
         return np.zeros(6, dtype=np.float64)
-        
+
     r_norm3 = r_norm**3
     ax, ay, az = -mu * r / r_norm3
     res = np.array([y[3], y[4], y[5], ax, ay, az], dtype=np.float64)
@@ -114,11 +114,13 @@ def build_ode(forces: list[ForceModel]) -> Callable[[float, np.ndarray], np.ndar
     Callable[[float, np.ndarray], np.ndarray]
         The derivative function dy/dt = f(t, y) for integration.
     """
+
     def ode(t: float, y: np.ndarray) -> np.ndarray:
         accel = np.zeros(3, dtype=np.float64)
         for f in forces:
             accel += f.acceleration(y, t)
         return np.array([y[3], y[4], y[5], accel[0], accel[1], accel[2]], dtype=np.float64)
+
     return ode
 
 
@@ -131,7 +133,7 @@ def propagate_two_body(
     forces: list[ForceModel] | None = None,
 ) -> OrbitalState:
     """Propagate state forward by dt_seconds using pluggable integrator.
-    
+
     Includes safety checks for central body collisions and numerical singularities.
     Returns the new OrbitalState containing detailed integration metadata.
     """
@@ -139,7 +141,7 @@ def propagate_two_body(
         integrator = RK45Integrator()
 
     r_min = PHYSICAL_RADIUS.get(state.central_body, 0.0)
-    
+
     # 1. Pre-propagation collision check
     r0_norm = float(np.linalg.norm(state.position))
     if r0_norm < r_min:
@@ -152,7 +154,7 @@ def propagate_two_body(
     def collision_event(t: float, y: np.ndarray, *args: Any) -> float:  # noqa: ANN401
         r = y[:3]
         return float(np.linalg.norm(r) - r_min)
-        
+
     collision_event.terminal = True  # type: ignore[attr-defined]
     collision_event.direction = -1  # type: ignore[attr-defined]
 
@@ -161,7 +163,7 @@ def propagate_two_body(
 
     mu = state.mu
     start_time = time.perf_counter()
-    
+
     # Execute integration
     if forces is None:
         res = integrator.integrate(
@@ -171,7 +173,7 @@ def propagate_two_body(
             rtol=rtol,
             atol=atol,
             args=(mu,),
-            events=collision_event
+            events=collision_event,
         )
     else:
         res = integrator.integrate(
@@ -180,9 +182,9 @@ def propagate_two_body(
             y0=y0,
             rtol=rtol,
             atol=atol,
-            events=collision_event
+            events=collision_event,
         )
-    
+
     elapsed_time = time.perf_counter() - start_time
 
     # 2. Check for integration success and collision triggers
@@ -232,7 +234,7 @@ def propagate_to_times(
         integrator = RK45Integrator()
 
     r_min = PHYSICAL_RADIUS.get(state.central_body, 0.0)
-    
+
     # Pre-propagation collision check
     r0_norm = float(np.linalg.norm(state.position))
     if r0_norm < r_min:
@@ -244,7 +246,7 @@ def propagate_to_times(
     def collision_event(t: float, y: np.ndarray, *args: Any) -> float:  # noqa: ANN401
         r = y[:3]
         return float(np.linalg.norm(r) - r_min)
-        
+
     collision_event.terminal = True  # type: ignore[attr-defined]
     collision_event.direction = -1  # type: ignore[attr-defined]
 
@@ -262,7 +264,7 @@ def propagate_to_times(
             atol=atol,
             t_eval=times_eval,
             args=(mu,),
-            events=collision_event
+            events=collision_event,
         )
     else:
         res = integrator.integrate(
@@ -272,7 +274,7 @@ def propagate_to_times(
             rtol=rtol,
             atol=atol,
             t_eval=times_eval,
-            events=collision_event
+            events=collision_event,
         )
     elapsed_time = time.perf_counter() - start_time
 
@@ -289,7 +291,7 @@ def propagate_to_times(
                 f"Collision detected with central body {state.central_body.value} "
                 f"at step time {t:.1f} s: r = {r_step:.3f} km (physical radius = {r_min:.3f} km)"
             )
-            
+
         metadata = {
             "nfev": res.nfev,
             "njev": res.njev,
@@ -298,14 +300,16 @@ def propagate_to_times(
             "success": res.success,
             "integrator": integrator.__class__.__name__,
         }
-        
-        states.append(OrbitalState(
-            epoch=state.epoch + t,
-            position=y_step[:3],
-            velocity=y_step[3:],
-            frame=state.frame,
-            central_body=state.central_body,
-            metadata=metadata,
-        ))
-        
+
+        states.append(
+            OrbitalState(
+                epoch=state.epoch + t,
+                position=y_step[:3],
+                velocity=y_step[3:],
+                frame=state.frame,
+                central_body=state.central_body,
+                metadata=metadata,
+            )
+        )
+
     return states

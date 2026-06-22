@@ -1,7 +1,6 @@
 import math
 
 import numpy as np
-
 from astra.physics.propagator import propagate_two_body
 from astra.state.orbital_state import GM, CelestialBody, OrbitalState, ReferenceFrame
 
@@ -18,12 +17,14 @@ def iss_state() -> OrbitalState:
         central_body=CelestialBody.EARTH,
     )
 
+
 def test_energy_conservation() -> None:
     """Specific energy must be conserved to 1e-8 relative error."""
     s0 = iss_state()
     s1 = propagate_two_body(s0, dt_seconds=5400.0)  # ~1 orbit
     rel_err = abs(s1.specific_energy - s0.specific_energy) / abs(s0.specific_energy)
     assert rel_err < 1e-8, f"Energy drift: {rel_err:.2e}"
+
 
 def test_angular_momentum_conservation() -> None:
     s0 = iss_state()
@@ -32,6 +33,7 @@ def test_angular_momentum_conservation() -> None:
     h1 = s1.specific_angular_momentum
     rel_err = np.linalg.norm(h1 - h0) / np.linalg.norm(h0)
     assert rel_err < 1e-9, f"Angular momentum drift: {rel_err:.2e}"
+
 
 def test_circular_orbit_period() -> None:
     """After one Keplerian period the spacecraft returns to start."""

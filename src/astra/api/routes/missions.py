@@ -7,6 +7,7 @@ Contains:
 - GET /v1/missions/{id}/sensitivity: Run sensitivity analysis on optimized trajectory.
 - GET /v1/missions/{id}/pareto-metrics: Get Pareto front metrics for optimization run.
 """
+
 from __future__ import annotations
 
 import logging
@@ -43,12 +44,10 @@ def _run_optimization(job_id: str, mission_yaml: str) -> None:
     try:
         _jobs[job_id]["status"] = "running"
         dsl = parse_mission_string(mission_yaml)
-        mission = compile_mission(
-            dsl,
-            kernel.ephemeris if kernel._kernels_loaded else None
-        )
+        mission = compile_mission(dsl, kernel.ephemeris if kernel._kernels_loaded else None)
         result = optimize_mission_bayesian(
-            mission, kernel,
+            mission,
+            kernel,
             n_trials=mission.max_evaluations,
             time_limit=300.0,
             seed=mission.seed,
@@ -58,26 +57,30 @@ def _run_optimization(job_id: str, mission_yaml: str) -> None:
         best_tid = None
         if result.best_trajectory:
             trace = explain(
-                result.best_trajectory, mission,
+                result.best_trajectory,
+                mission,
                 pareto_front=result.pareto_front,
                 ephemeris=kernel.ephemeris if kernel._kernels_loaded else None,
             )
             best_tid = store.save_trajectory(
-                result.best_trajectory, mission.mission_id,
+                result.best_trajectory,
+                mission.mission_id,
                 explanation=trace.to_dict(),
             )
             for traj in result.pareto_front[:20]:  # store top 20 Pareto
                 store.save_trajectory(traj, mission.mission_id, feasible=True)
 
         run_id = store.save_optimization_run(mission.mission_id, result_dict, best_tid)
-        _jobs[job_id].update({
-            "status": "complete",
-            "result": result_dict,
-            "best_trajectory_id": best_tid,
-            "run_id": run_id,
-            "mission_id": mission.mission_id,
-            "mission_yaml": mission_yaml,
-        })
+        _jobs[job_id].update(
+            {
+                "status": "complete",
+                "result": result_dict,
+                "best_trajectory_id": best_tid,
+                "run_id": run_id,
+                "mission_id": mission.mission_id,
+                "mission_yaml": mission_yaml,
+            }
+        )
     except Exception as e:
         logger.exception(f"Optimization job {job_id} failed")
         _jobs[job_id].update({"status": "failed", "error": str(e)})
@@ -93,9 +96,7 @@ async def optimize_mission(
     _jobs[job_id] = {"status": "queued", "job_id": job_id, "mission_yaml": request.mission_yaml}
     background_tasks.add_task(_run_optimization, job_id, request.mission_yaml)
     return JobSubmittedResponse(
-        job_id=job_id,
-        status="queued",
-        poll_url=f"/v1/missions/{job_id}/status"
+        job_id=job_id, status="queued", poll_url=f"/v1/missions/{job_id}/status"
     )
 
 
@@ -115,10 +116,7 @@ async def mission_result(job_id: str) -> dict[str, Any]:
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
     if job["status"] != "complete":
-        raise HTTPException(
-            status_code=409,
-            detail=f"Job not complete. Status: {job['status']}"
-        )
+        raise HTTPException(status_code=409, detail=f"Job not complete. Status: {job['status']}")
     return job
 
 
@@ -133,13 +131,13 @@ async def mission_sensitivity(job_id: str) -> dict[str, Any]:
     best_tid = job.get("best_trajectory_id")
     if not best_tid:
         raise HTTPException(status_code=404, detail="No trajectory stored for this job")
-    
+
     kernel = get_kernel()
     store = get_store()
     row = store.get_trajectory(best_tid)
     if row is None:
         raise HTTPException(status_code=404, detail="Trajectory not found in store")
-    
+
     td = row["trajectory"]
     dep_epoch = td["departure_epoch_j2000"]
     arr_epoch = td["arrival_epoch_j2000"]
@@ -152,21 +150,30 @@ async def mission_sensitivity(job_id: str) -> dict[str, Any]:
         for m in td["maneuvers"]
     ]
     states = [
-        OrbitalState(epoch=dep_epoch, position=np.zeros(3), velocity=np.zeros(3),
-                     central_body=CelestialBody.SUN),
-        OrbitalState(epoch=arr_epoch, position=np.zeros(3), velocity=np.zeros(3),
-                     central_body=CelestialBody.SUN),
+        OrbitalState(
+            epoch=dep_epoch,
+            position=np.zeros(3),
+            velocity=np.zeros(3),
+            central_body=CelestialBody.SUN,
+        ),
+        OrbitalState(
+            epoch=arr_epoch,
+            position=np.zeros(3),
+            velocity=np.zeros(3),
+            central_body=CelestialBody.SUN,
+        ),
     ]
     traj = Trajectory(states=states, maneuvers=maneuvers, metadata=td.get("metadata", {}))
-    
+
     mission_yaml = job.get("mission_yaml", "")
     if not mission_yaml:
         raise HTTPException(status_code=422, detail="Mission YAML not stored with job")
     dsl = parse_mission_string(mission_yaml)
     mission = compile_mission(dsl, kernel.ephemeris if kernel._kernels_loaded else None)
-    
+
     result = analyze_sensitivity(traj, mission, kernel)
     return result.to_dict()
+
 
 @router.get("/v1/missions/{job_id}/pareto-metrics")
 async def pareto_metrics(job_id: str) -> dict[str, Any]:
@@ -179,7 +186,7 @@ async def pareto_metrics(job_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="No mission_id in job")
     store = get_store()
     metrics = store.get_pareto_metrics(mission_id)
-    
+
     rows = store.conn.execute(
         """SELECT delta_v_total_km_s, duration_days FROM trajectories
            WHERE mission_id = ? AND feasible = true
@@ -188,7 +195,7 @@ async def pareto_metrics(job_id: str) -> dict[str, Any]:
     ).fetchall()
     dvs = [round(float(r[0]), 4) for r in rows]
     days = [round(float(r[1]), 2) for r in rows]
-    
+
     if "error" in metrics:
         return {
             **metrics,
@@ -245,22 +252,29 @@ async def mission_summary(job_id: str) -> dict[str, Any]:
 
             from astra.state.orbital_state import CelestialBody, OrbitalState
             from astra.state.trajectory import Maneuver, Trajectory
+
             td = row["trajectory"]
             maneuvers = [
                 Maneuver(epoch=m["epoch"], delta_v=np.array(m["dv_km_s"]), label=m["label"])
                 for m in td["maneuvers"]
             ]
             states = [
-                OrbitalState(epoch=td["departure_epoch_j2000"],
-                             position=np.zeros(3), velocity=np.zeros(3),
-                             central_body=CelestialBody.SUN),
-                OrbitalState(epoch=td["arrival_epoch_j2000"],
-                             position=np.zeros(3), velocity=np.zeros(3),
-                             central_body=CelestialBody.SUN),
+                OrbitalState(
+                    epoch=td["departure_epoch_j2000"],
+                    position=np.zeros(3),
+                    velocity=np.zeros(3),
+                    central_body=CelestialBody.SUN,
+                ),
+                OrbitalState(
+                    epoch=td["arrival_epoch_j2000"],
+                    position=np.zeros(3),
+                    velocity=np.zeros(3),
+                    central_body=CelestialBody.SUN,
+                ),
             ]
-            res_obj.best_trajectory = Trajectory(states=states, maneuvers=maneuvers,
-                                                 metadata=td.get("metadata", {}))
+            res_obj.best_trajectory = Trajectory(
+                states=states, maneuvers=maneuvers, metadata=td.get("metadata", {})
+            )
 
     summary = mission_summary_from_result(res_obj, mission)
     return summary.to_dict()
-

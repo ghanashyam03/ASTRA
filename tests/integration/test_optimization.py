@@ -1,4 +1,5 @@
 """End-to-end optimization integration tests. Requires SPICE kernels."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,10 +8,10 @@ import pytest
 
 SPICE_AVAILABLE = (Path("data/spice_kernels") / "de440.bsp").exists()
 
+
 @pytest.mark.skipif(not SPICE_AVAILABLE, reason="SPICE kernels required")
 def test_porkchop_grid_produces_finite_values() -> None:
     import numpy as np
-
     from astra.dsl.compiler import compile_mission
     from astra.dsl.parser import parse_mission_file
     from astra.optimization.engine import compute_porkchop
@@ -28,6 +29,7 @@ def test_porkchop_grid_produces_finite_values() -> None:
     assert finite_count > 50, f"Only {finite_count} finite values — porkchop mostly empty"
     min_dv = float(np.nanmin(dv_grid))
     assert 3.0 < min_dv < 12.0, f"Min porkchop Δv {min_dv:.2f} km/s is outside 3–12 range"
+
 
 @pytest.mark.skipif(not SPICE_AVAILABLE, reason="SPICE kernels required")
 def test_bayesian_optimization_finds_feasible() -> None:
@@ -51,6 +53,7 @@ def test_bayesian_optimization_finds_feasible() -> None:
     assert days < 250, f"Best duration {days:.1f} d exceeds 250-day constraint"
     # Physical plausibility check: Earth-Mars Δv always > 2.5 km/s
     assert dv > 2.5, f"Δv {dv:.2f} km/s is unphysically low"
+
 
 @pytest.mark.skipif(not SPICE_AVAILABLE, reason="SPICE kernels required")
 def test_pareto_front_is_nonempty() -> None:

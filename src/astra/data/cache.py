@@ -4,6 +4,7 @@ Thread-unsafe — single-process use only (matches ASTRA's single-worker API).
 Cache key: (body_name: str, epoch_j2000: float quantized to 1-second grid,
             frame: str, observer: str)
 """
+
 from __future__ import annotations
 
 import json
@@ -17,15 +18,14 @@ import numpy as np
 
 DEFAULT_QUANTIZATION_SECONDS = 60.0
 
+
 def _quantize_epoch(
     epoch: float,
     quantization_seconds: float,
 ) -> float:
     """Round epoch to nearest quantization grid point."""
-    return (
-        round(epoch / quantization_seconds)
-        * quantization_seconds
-    )
+    return round(epoch / quantization_seconds) * quantization_seconds
+
 
 def _cache_key(
     body: str,
@@ -41,11 +41,13 @@ def _cache_key(
         observer,
     )
 
+
 @dataclass
 class CacheEntry:
-    position: np.ndarray   # shape (3,) float64 km
-    velocity: np.ndarray   # shape (3,) float64 km/s
+    position: np.ndarray  # shape (3,) float64 km
+    velocity: np.ndarray  # shape (3,) float64 km/s
     created_at: float = field(default_factory=time.time)
+
 
 @dataclass
 class CacheStats:
@@ -65,6 +67,7 @@ class CacheStats:
             "evictions": self.evictions,
             "hit_rate_pct": round(self.hit_rate * 100, 1),
         }
+
 
 class EphemerisCache:
     """In-memory LRU cache for ephemeris state vectors.

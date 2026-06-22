@@ -1,4 +1,5 @@
 """ASTRA explainability coordinator."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,6 +32,7 @@ class ExplanationTrace:
             "window_rationale": self.window_rationale.to_dict() if self.window_rationale else None,
             "pareto_analysis": self.pareto_analysis.to_dict() if self.pareto_analysis else None,
         }
+
 
 def explain(
     trajectory: Trajectory,

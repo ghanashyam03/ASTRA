@@ -1,6 +1,7 @@
 """Physics-grounded geometric features for neural surrogate models.
 All features must be computable WITHOUT calling Lambert (< 0.1ms each).
 """
+
 from __future__ import annotations
 
 import math
@@ -12,6 +13,7 @@ from astra.state.orbital_state import GM
 AU = 1.496e8  # km
 MU_SUN = GM["SUN"]
 
+
 def compute_hohmann_tof(r1_km: float, r2_km: float) -> float:
     """Approximate Hohmann transfer TOF [seconds] between circular orbits.
     T_Hohmann = π * sqrt((r1 + r2)³ / (8μ))
@@ -19,16 +21,18 @@ def compute_hohmann_tof(r1_km: float, r2_km: float) -> float:
     a_transfer = (r1_km + r2_km) / 2.0
     return math.pi * math.sqrt(a_transfer**3 / MU_SUN)
 
+
 def compute_vis_viva_speed(r_km: float, a_km: float) -> float:
     """Speed on a Keplerian orbit [km/s]: v = sqrt(μ(2/r - 1/a))."""
     return math.sqrt(MU_SUN * (2.0 / r_km - 1.0 / a_km))
 
+
 def build_geometric_features(
     dep_epoch: float,
     tof_seconds: float,
-    r1_km: np.ndarray,           # origin position at departure
-    v1_km_s: np.ndarray,         # origin velocity at departure
-    r2_km: np.ndarray,           # destination position at arrival
+    r1_km: np.ndarray,  # origin position at departure
+    v1_km_s: np.ndarray,  # origin velocity at departure
+    r2_km: np.ndarray,  # destination position at arrival
     dep_epoch_min: float,
     dep_epoch_max: float,
     tof_min: float,
@@ -97,5 +101,6 @@ def build_geometric_features(
     else:
         feat_7 = 1.0
 
-    return np.array([feat_0, feat_1, feat_2, feat_3, feat_4,
-                     feat_5, feat_6, feat_7], dtype=np.float32)
+    return np.array(
+        [feat_0, feat_1, feat_2, feat_3, feat_4, feat_5, feat_6, feat_7], dtype=np.float32
+    )

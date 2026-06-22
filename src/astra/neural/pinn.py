@@ -3,6 +3,7 @@
 This model predicts departure and arrival velocity vectors (6 output dimensions)
 and uses configurable combined physics residuals (vis-viva, energy, angular momentum).
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -70,7 +71,7 @@ class LambertPINN(NeuralSurrogate):
         self.lr = lr
         self.physics_weight = physics_weight
         self.mu_sun = mu_sun
-        
+
         self.use_vis_viva = use_vis_viva
         self.use_energy = use_energy
         self.use_angular_momentum = use_angular_momentum
@@ -80,14 +81,14 @@ class LambertPINN(NeuralSurrogate):
 
         # Layer dimensions: 8 (input features) -> hidden_dims -> 6 (predicted velocities)
         dims = [8] + list(hidden_dims) + [6]
-        
+
         self.weights: list[np.ndarray] = []
         self.biases: list[np.ndarray] = []
 
         # Initialize weights and biases using He initialization
         for i in range(len(dims) - 1):
             in_dim = dims[i]
-            out_dim = dims[i+1]
+            out_dim = dims[i + 1]
             w = (np.random.randn(in_dim, out_dim) * np.sqrt(2.0 / in_dim)).astype(np.float32)
             b = np.zeros((1, out_dim), dtype=np.float32)
             self.weights.append(w)
@@ -127,7 +128,7 @@ class LambertPINN(NeuralSurrogate):
         # Output layer with linear activation (velocities can be negative)
         z_out = current_act @ self.weights[-1] + self.biases[-1]
         out = z_out.astype(np.float32)
-        
+
         self._preacts.append(z_out)
         self._activations.append(out)
 
@@ -187,12 +188,8 @@ class LambertPINN(NeuralSurrogate):
                 v_planet_dep = v_planet_depart
             else:
                 v_planet_dep = np.zeros((batch_size, 3), dtype=np.float32)
-            v_inf_pred = np.linalg.norm(
-                v_dep_pred - v_planet_dep, axis=1, keepdims=True
-            )
-            v_transfer_r1 = np.sqrt(
-                self.mu_sun * (2.0 / r1_norm - 1.0 / a_transfer)
-            )
+            v_inf_pred = np.linalg.norm(v_dep_pred - v_planet_dep, axis=1, keepdims=True)
+            v_transfer_r1 = np.sqrt(self.mu_sun * (2.0 / r1_norm - 1.0 / a_transfer))
             res_vis = (v_transfer_r1 - v_inf_pred) ** 2
             total_res += self.vis_viva_weight * res_vis
 
@@ -247,7 +244,7 @@ class LambertPINN(NeuralSurrogate):
             r1_sh = r1_target[indices]
             r2_sh = r2_target[indices]
             tof_sh = tof_target[indices]
-            
+
             r1_v_sh = r1_vecs[indices] if r1_vecs is not None else None
             r2_v_sh = r2_vecs[indices] if r2_vecs is not None else None
             vp_dep_sh = v_planet_depart[indices] if v_planet_depart is not None else None
@@ -262,25 +259,17 @@ class LambertPINN(NeuralSurrogate):
                 r1b = r1_sh[i : i + batch_size]
                 r2b = r2_sh[i : i + batch_size]
                 tofb = tof_sh[i : i + batch_size]
-                
-                r1_vecs_b = (
-                    r1_v_sh[i : i + batch_size] if r1_v_sh is not None else None
-                )
-                r2_vecs_b = (
-                    r2_v_sh[i : i + batch_size] if r2_v_sh is not None else None
-                )
+
+                r1_vecs_b = r1_v_sh[i : i + batch_size] if r1_v_sh is not None else None
+                r2_vecs_b = r2_v_sh[i : i + batch_size] if r2_v_sh is not None else None
                 if vp_dep_sh is not None:
                     v_planet_dep_b = vp_dep_sh[i : i + batch_size]
                 else:
-                    v_planet_dep_b = np.zeros(
-                        (xb.shape[0], 3), dtype=np.float32
-                    )
+                    v_planet_dep_b = np.zeros((xb.shape[0], 3), dtype=np.float32)
                 if vp_arr_sh is not None:
                     v_planet_arr_b = vp_arr_sh[i : i + batch_size]
                 else:
-                    v_planet_arr_b = np.zeros(
-                        (xb.shape[0], 3), dtype=np.float32
-                    )
+                    v_planet_arr_b = np.zeros((xb.shape[0], 3), dtype=np.float32)
 
                 m = xb.shape[0]
 
@@ -298,28 +287,24 @@ class LambertPINN(NeuralSurrogate):
                     feasible_mask = (yb < 20.0).flatten()
                     count_feasible = np.sum(feasible_mask)
                     if count_feasible > 0:
-                        mse_loss = float(np.mean((pred_dv[feasible_mask] - yb[feasible_mask])**2))
+                        mse_loss = float(np.mean((pred_dv[feasible_mask] - yb[feasible_mask]) ** 2))
                     else:
                         mse_loss = 0.0
                 else:
                     # Compute corresponding delta-v to check feasibility
-                    dv_from_yb = (
-                        np.linalg.norm(yb[:, :3] - v_planet_dep_b, axis=1) +
-                        np.linalg.norm(yb[:, 3:] - v_planet_arr_b, axis=1)
-                    )
-                    feasible_mask = (dv_from_yb < 20.0)
+                    dv_from_yb = np.linalg.norm(
+                        yb[:, :3] - v_planet_dep_b, axis=1
+                    ) + np.linalg.norm(yb[:, 3:] - v_planet_arr_b, axis=1)
+                    feasible_mask = dv_from_yb < 20.0
                     count_feasible = np.sum(feasible_mask)
                     if count_feasible > 0:
-                        mse_loss = float(
-                            np.mean((pred[feasible_mask] - yb[feasible_mask])**2)
-                        )
+                        mse_loss = float(np.mean((pred[feasible_mask] - yb[feasible_mask]) ** 2))
                     else:
                         mse_loss = 0.0
 
                 # Compute physics loss
                 res = self.physics_residual(
-                    xb, r1b, r2b, tofb, r1_vecs_b, r2_vecs_b,
-                    v_planet_dep_b, v_planet_arr_b
+                    xb, r1b, r2b, tofb, r1_vecs_b, r2_vecs_b, v_planet_dep_b, v_planet_arr_b
                 )
                 physics_loss = float(np.mean(res))
 
@@ -339,14 +324,13 @@ class LambertPINN(NeuralSurrogate):
                         dy[feasible_mask, 3:] = (d_mse_d_pred_dv * u_arr)[feasible_mask]
                     else:
                         dy[feasible_mask] = (
-                            2.0 * (pred[feasible_mask] - yb[feasible_mask]) /
-                            count_feasible
+                            2.0 * (pred[feasible_mask] - yb[feasible_mask]) / count_feasible
                         )
 
                 # Physics loss gradients
                 dy_physics = np.zeros_like(pred, dtype=np.float32)
                 a_transfer = (r1b.reshape(-1, 1) + r2b.reshape(-1, 1)) / 2.0
-                
+
                 if self.use_vis_viva:
                     v_dep_pred = pred[:, :3]
                     v_inf_vec = v_dep_pred - v_planet_dep_b
@@ -396,7 +380,7 @@ class LambertPINN(NeuralSurrogate):
 
                     if layer_idx > 0:
                         da_prev = dz @ self.weights[layer_idx].T
-                        z_prev = self._preacts[layer_idx-1]
+                        z_prev = self._preacts[layer_idx - 1]
                         dz = da_prev * (z_prev > 0.0)
 
                 dw_list.reverse()
@@ -425,20 +409,18 @@ class LambertPINN(NeuralSurrogate):
     ) -> SurrogatePrediction:
         """Predict velocities and compute delta-v for a single features vector."""
         pred = self.forward(features.reshape(1, -1))[0]  # (6,)
-        
+
         v_planet_dep = (
-            v_planet_depart if v_planet_depart is not None
-            else np.zeros(3, dtype=np.float32)
+            v_planet_depart if v_planet_depart is not None else np.zeros(3, dtype=np.float32)
         )
         v_planet_arr = (
-            v_planet_arrive if v_planet_arrive is not None
-            else np.zeros(3, dtype=np.float32)
+            v_planet_arrive if v_planet_arrive is not None else np.zeros(3, dtype=np.float32)
         )
-        
+
         dv_dep = float(np.linalg.norm(pred[:3] - v_planet_dep))
         dv_arr = float(np.linalg.norm(pred[3:] - v_planet_arr))
         total_dv = dv_dep + dv_arr
-        
+
         return SurrogatePrediction(
             prediction=total_dv,
             uncertainty=0.0,
@@ -458,16 +440,18 @@ class LambertPINN(NeuralSurrogate):
         """Predict total delta-v for a batch of features."""
         preds = self.forward(features)
         n_samples = features.shape[0]
-        
+
         v_planet_dep = (
-            v_planet_depart if v_planet_depart is not None
+            v_planet_depart
+            if v_planet_depart is not None
             else np.zeros((n_samples, 3), dtype=np.float32)
         )
         v_planet_arr = (
-            v_planet_arrive if v_planet_arrive is not None
+            v_planet_arrive
+            if v_planet_arrive is not None
             else np.zeros((n_samples, 3), dtype=np.float32)
         )
-        
+
         dv_dep = np.linalg.norm(preds[:, :3] - v_planet_dep, axis=1)
         dv_arr = np.linalg.norm(preds[:, 3:] - v_planet_arr, axis=1)
         return np.asarray(dv_dep + dv_arr, dtype=np.float32)
@@ -478,7 +462,7 @@ class LambertPINN(NeuralSurrogate):
 
     def evaluate(self, x_test: np.ndarray, y_test: np.ndarray) -> SurrogateMetrics:
         """Evaluate performance on a test set (feasible samples only)."""
-        feasible_mask = (y_test < 20.0)
+        feasible_mask = y_test < 20.0
         x_feas = x_test[feasible_mask]
         y_feas = y_test[feasible_mask]
         n_test_samples = int(np.sum(feasible_mask))
@@ -598,16 +582,14 @@ class LambertPINNEnsemble(NeuralSurrogate):
         preds = np.array(preds_list)  # (ensemble_size, 6)
 
         mean_v = np.mean(preds, axis=0)  # (6,)
-        var_v = np.var(preds, axis=0)    # (6,)
-        std_v = np.sqrt(var_v)           # (6,)
+        var_v = np.var(preds, axis=0)  # (6,)
+        std_v = np.sqrt(var_v)  # (6,)
 
         v_planet_dep = (
-            v_planet_depart if v_planet_depart is not None
-            else np.zeros(3, dtype=np.float32)
+            v_planet_depart if v_planet_depart is not None else np.zeros(3, dtype=np.float32)
         )
         v_planet_arr = (
-            v_planet_arrive if v_planet_arrive is not None
-            else np.zeros(3, dtype=np.float32)
+            v_planet_arrive if v_planet_arrive is not None else np.zeros(3, dtype=np.float32)
         )
 
         # Calculate delta-v for each ensemble member
@@ -647,11 +629,13 @@ class LambertPINNEnsemble(NeuralSurrogate):
         preds = np.array(preds_list)  # (ensemble, N, 6)
 
         v_planet_dep = (
-            v_planet_depart if v_planet_depart is not None
+            v_planet_depart
+            if v_planet_depart is not None
             else np.zeros((n_samples, 3), dtype=np.float32)
         )
         v_planet_arr = (
-            v_planet_arrive if v_planet_arrive is not None
+            v_planet_arrive
+            if v_planet_arrive is not None
             else np.zeros((n_samples, 3), dtype=np.float32)
         )
 
@@ -671,7 +655,7 @@ class LambertPINNEnsemble(NeuralSurrogate):
 
     def evaluate(self, x_test: np.ndarray, y_test: np.ndarray) -> SurrogateMetrics:
         """Evaluate performance on a test set using the ensemble mean prediction."""
-        feasible_mask = (y_test < 20.0)
+        feasible_mask = y_test < 20.0
         x_feas = x_test[feasible_mask]
         y_feas = y_test[feasible_mask]
         n_test_samples = int(np.sum(feasible_mask))
@@ -785,6 +769,7 @@ class ActiveLearningManager:
 
         if pred_obj.uncertainty > self.uncertainty_threshold:
             from astra.physics.lambert import find_best_transfer
+
             try:
                 # Execute real Lambert solve
                 sol = find_best_transfer(

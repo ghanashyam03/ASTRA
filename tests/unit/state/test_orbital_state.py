@@ -1,5 +1,4 @@
 import numpy as np
-
 from astra.state.orbital_state import GM, CelestialBody, OrbitalState, ReferenceFrame
 
 
@@ -16,10 +15,12 @@ def circular_orbit_state(altitude_km: float) -> OrbitalState:
         central_body=CelestialBody.EARTH,
     )
 
+
 def test_shape_validation() -> None:
     s = circular_orbit_state(400.0)
     assert s.position.shape == (3,)
     assert s.velocity.shape == (3,)
+
 
 def test_specific_energy_circular_orbit() -> None:
     """For circular orbit: ε = -μ/(2a) = -μ/(2r)."""
@@ -28,10 +29,12 @@ def test_specific_energy_circular_orbit() -> None:
     expected = -mu / (2.0 * s.r)
     assert abs(s.specific_energy - expected) < 1e-6
 
+
 def test_eccentricity_circular_orbit() -> None:
     """Circular orbit must have eccentricity ≈ 0."""
     s = circular_orbit_state(400.0)
     assert abs(s.eccentricity) < 1e-8
+
 
 def test_semi_major_axis_circular_orbit() -> None:
     """SMA equals radius for circular orbit."""
@@ -40,8 +43,10 @@ def test_semi_major_axis_circular_orbit() -> None:
     expected_r = 6371.0 + altitude
     assert abs(s.semi_major_axis - expected_r) < 0.01  # within 10 meters
 
+
 def test_delta_v_budget_tsiolkovsky() -> None:
     from astra.state.spacecraft import PropulsionSystem, PropulsionType, Spacecraft
+
     prop = PropulsionSystem(
         type=PropulsionType.CHEMICAL,
         isp_seconds=450.0,
@@ -50,5 +55,6 @@ def test_delta_v_budget_tsiolkovsky() -> None:
     )
     sc = Spacecraft(name="TestCraft", dry_mass_kg=1800.0, propulsion=prop)
     import math
+
     expected = 450.0 * 9.80665e-3 * math.log(4200.0 / 1800.0)
     assert abs(sc.delta_v_budget() - expected) < 1e-6

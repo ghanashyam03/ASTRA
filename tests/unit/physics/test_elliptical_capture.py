@@ -1,12 +1,11 @@
 import numpy as np
 import pytest
-from pydantic import ValidationError
-
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_string
 from astra.dsl.schema import OrbitSchema
 from astra.physics.maneuvers import arrival_delta_v, circularization_delta_v
 from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody
+from pydantic import ValidationError
 
 
 def test_circular_capture_backward_compatibility() -> None:
@@ -75,7 +74,6 @@ def test_circularization_maneuver() -> None:
     )
     expected_dv = 0.5144171808701444
     assert np.allclose(dv, expected_dv, rtol=1e-10)
-
 
 
 def test_orbit_schema_validation() -> None:

@@ -4,7 +4,6 @@ from typing import Any
 
 import numpy as np
 import pytest
-
 from astra.neural.feasibility import FeasibilityClassifier
 from astra.neural.features import (
     AU,
@@ -38,7 +37,7 @@ def test_build_geometric_features() -> None:
     v1 = np.array([0.0, 30.0, 0.0])
     # 90 degrees phase angle
     r2 = np.array([0.0, AU * 2.0, 0.0])
-    
+
     feats = build_geometric_features(
         dep_epoch=1000.0,
         tof_seconds=5000.0,
@@ -51,7 +50,7 @@ def test_build_geometric_features() -> None:
         tof_max=9000.0,
         synodic_period_s=4000.0,
     )
-    
+
     assert feats.shape == (8,)
     assert feats.dtype == np.float32
 
@@ -148,12 +147,12 @@ def test_surrogate_metrics_to_dict() -> None:
 def test_feasibility_classifier_evaluate_with_u_statistic(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify classifier evaluation correctness, including custom rank-sum fallback."""
     clf = FeasibilityClassifier()
-    
+
     # Create simple dataset:
     # 4 samples, first 2 are negative, next 2 are positive
     X = np.random.randn(4, 8).astype(np.float32)
     y = np.array([0.0, 0.0, 1.0, 1.0], dtype=np.float32)
-    
+
     # Mock forward to return known predictions:
     # y_flat:  0.0, 0.0, 1.0, 1.0
     # preds:   0.1, 0.8, 0.4, 0.2
@@ -164,17 +163,17 @@ def test_feasibility_classifier_evaluate_with_u_statistic(monkeypatch: pytest.Mo
     # fp = 1 (preds >= 0.3 for y_flat=0.0: 0.8)
     # tn = 1 (preds < 0.3 for y_flat=0.0: 0.1)
     # fn = 1 (preds < 0.3 for y_flat=1.0: 0.2)
-    
+
     def mock_forward(x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         # returns (a1, a2, a3)
         return (
             np.zeros((x.shape[0], 32)),
             np.zeros((x.shape[0], 16)),
-            np.array([[0.1], [0.8], [0.4], [0.2]], dtype=np.float32)
+            np.array([[0.1], [0.8], [0.4], [0.2]], dtype=np.float32),
         )
-    
+
     monkeypatch.setattr(clf, "forward", mock_forward)
-    
+
     # 1. Test with scikit-learn metrics if installed
     metrics = clf.evaluate(X, y)
     assert metrics.tp == 1
@@ -184,22 +183,22 @@ def test_feasibility_classifier_evaluate_with_u_statistic(monkeypatch: pytest.Mo
     assert metrics.accuracy == 0.5
     assert metrics.precision == 0.5
     assert metrics.recall == 0.5
-    
+
     # 2. Force U-statistic fallback code path by hiding scikit-learn
     # We mock sklearn.metrics to raise ImportError on import
     original_import = builtins.__import__
-    
+
     def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         if name == "sklearn.metrics" or name.startswith("sklearn"):
             raise ImportError("Mocked import error")
         return original_import(name, *args, **kwargs)
-        
+
     monkeypatch.setattr(builtins, "__import__", mock_import)
-    
+
     metrics_fallback = clf.evaluate(X, y)
     assert metrics_fallback.tp == 1
     assert metrics_fallback.fp == 1
-    
+
     # Calculate expected U-statistic AUC:
     # pos_preds = [0.4, 0.2]
     # neg_preds = [0.1, 0.8]

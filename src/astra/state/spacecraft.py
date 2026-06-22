@@ -9,17 +9,19 @@ class PropulsionType(StrEnum):
     ELECTRIC = "electric"
     HYBRID = "hybrid"
 
+
 @dataclass
 class PropulsionSystem:
     type: PropulsionType
-    isp_seconds: float          # specific impulse
-    thrust_newtons: float       # 0.0 for impulsive model
+    isp_seconds: float  # specific impulse
+    thrust_newtons: float  # 0.0 for impulsive model
     propellant_mass_kg: float
 
     @property
     def exhaust_velocity(self) -> float:
         """Ve = Isp × g0 [km/s]."""
         return self.isp_seconds * 9.80665e-3  # convert m/s → km/s
+
 
 @dataclass
 class Spacecraft:
@@ -38,4 +40,5 @@ class Spacecraft:
     def delta_v_budget(self) -> float:
         """Tsiolkovsky rocket equation [km/s]."""
         import math
+
         return self.propulsion.exhaust_velocity * math.log(self.mass_ratio)

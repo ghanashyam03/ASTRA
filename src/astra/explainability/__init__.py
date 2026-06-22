@@ -1,6 +1,7 @@
 """ASTRA explainability engine.
 Provides structural mathematical decompositions, constraint analysis, and window rationales.
 """
+
 from __future__ import annotations
 
 from astra.explainability.constraint_analysis import (

@@ -1,4 +1,5 @@
 """Pydantic v2 schema for the ASTRA Mission Definition Language."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,10 +14,12 @@ class PropulsionTypeSchema(StrEnum):
     ELECTRIC = "electric"
     HYBRID = "hybrid"
 
+
 class PropulsionSchema(BaseModel):
     type: PropulsionTypeSchema = PropulsionTypeSchema.CHEMICAL
     isp_seconds: Annotated[float, Field(gt=0, le=10000)] = 450.0
-    thrust_newtons: float = 0.0   # 0 = impulsive model
+    thrust_newtons: float = 0.0  # 0 = impulsive model
+
 
 class SpacecraftSchema(BaseModel):
     name: str
@@ -31,11 +34,12 @@ class SpacecraftSchema(BaseModel):
             raise ValueError("Total mass must be positive")
         return self
 
+
 class OrbitSchema(BaseModel):
     type: str = "circular"
-    altitude_km: float | None = None      # for circular
-    periapsis_km: float | None = None     # for elliptical
-    apoapsis_km: float | None = None      # for elliptical
+    altitude_km: float | None = None  # for circular
+    periapsis_km: float | None = None  # for elliptical
+    apoapsis_km: float | None = None  # for elliptical
 
     @model_validator(mode="after")
     def validate_orbit(self) -> OrbitSchema:
@@ -51,9 +55,11 @@ class OrbitSchema(BaseModel):
                 raise ValueError("altitude_km must be provided for circular orbits")
         return self
 
+
 class BodyOrbitSchema(BaseModel):
     body: str
     orbit: OrbitSchema | None = None
+
 
 class LaunchWindowSchema(BaseModel):
     start: datetime
@@ -70,11 +76,13 @@ class LaunchWindowSchema(BaseModel):
             raise ValueError("tof_max_days must exceed tof_min_days")
         return self
 
+
 class ConstraintType(StrEnum):
     MAX_DELTA_V = "max_delta_v"
     MAX_DURATION = "max_duration"
     MIN_PERIAPSIS = "min_periapsis"
     MAX_C3 = "max_c3"
+
 
 class ConstraintSchema(BaseModel):
     type: ConstraintType
@@ -84,29 +92,35 @@ class ConstraintSchema(BaseModel):
     body: str | None = None
     hard: bool = True
 
+
 class ObjectiveDirection(StrEnum):
     MINIMIZE = "minimize"
     MAXIMIZE = "maximize"
+
 
 class ObjectiveMetric(StrEnum):
     DELTA_V_TOTAL = "delta_v_total"
     TIME_OF_FLIGHT = "time_of_flight"
     ARRIVAL_MASS = "arrival_mass"
 
+
 class ObjectiveSchema(BaseModel):
     metric: ObjectiveMetric
     direction: ObjectiveDirection = ObjectiveDirection.MINIMIZE
     weight: Annotated[float, Field(gt=0)] = 1.0
+
 
 class PhysicsModelType(StrEnum):
     TWO_BODY = "two_body"
     PATCHED_CONICS = "patched_conics"
     N_BODY = "n_body"
 
+
 class PhysicsSchema(BaseModel):
     models: list[PhysicsModelType] = [PhysicsModelType.PATCHED_CONICS]
     ephemeris: str = "DE440"
     n_body_perturbations: list[str] = []
+
 
 class OptimizationStrategySchema(StrEnum):
     BAYESIAN = "bayesian"
@@ -114,9 +128,11 @@ class OptimizationStrategySchema(StrEnum):
     EVOLUTIONARY = "evolutionary"
     HYBRID = "hybrid"
 
+
 class OptimizationBudgetSchema(BaseModel):
     max_evaluations: Annotated[int, Field(gt=0)] = 5000
     time_limit_seconds: Annotated[float, Field(gt=0)] = 300.0
+
 
 class OptimizationSchema(BaseModel):
     strategy: OptimizationStrategySchema = OptimizationStrategySchema.BAYESIAN
@@ -124,12 +140,15 @@ class OptimizationSchema(BaseModel):
     seed: int = 42
     neural_acceleration: bool = False
 
+
 class TrajectorySchema(BaseModel):
     origin: BodyOrbitSchema
     destination: BodyOrbitSchema
 
+
 class MissionDSL(BaseModel):
     """Root model for ASTRA Mission Definition Language."""
+
     version: str = "1.0"
     mission_id: str
     spacecraft: SpacecraftSchema

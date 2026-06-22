@@ -1,4 +1,5 @@
 """Convert Pareto front trajectory data into Plotly-ready scatter structure."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 class ParetoPlotData:
     dv_km_s: list[float]
     tof_days: list[float]
-    departure_dates: list[str]     # ISO date strings if ephemeris provided else empty
+    departure_dates: list[str]  # ISO date strings if ephemeris provided else empty
     quality: ParetoQualityMetrics
     fuel_optimal_idx: int
     time_optimal_idx: int
@@ -35,6 +36,7 @@ class ParetoPlotData:
             "pareto_spread": round(self.quality.spread, 4),
             "n_solutions": self.quality.n_solutions,
         }
+
 
 def build_pareto_plot(
     trajectories: list[Trajectory],
@@ -64,7 +66,7 @@ def build_pareto_plot(
     dvs = [t.delta_v_total for t in trajectories]
     days = [t.duration_days for t in trajectories]
     quality = compute_pareto_quality(trajectories)
-    
+
     dep_dates: list[str] = []
     if ephemeris is not None:
         for t in trajectories:
@@ -72,7 +74,7 @@ def build_pareto_plot(
                 dep_dates.append(ephemeris.date_from_epoch(t.departure_epoch)[:10])
             except Exception:
                 dep_dates.append(f"J2000+{t.departure_epoch/86400:.0f}d")
-    
+
     return ParetoPlotData(
         dv_km_s=dvs,
         tof_days=days,

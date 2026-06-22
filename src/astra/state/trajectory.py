@@ -10,13 +10,14 @@ from astra.state.orbital_state import OrbitalState
 
 @dataclass
 class Maneuver:
-    epoch: float              # J2000 seconds
-    delta_v: np.ndarray       # [dvx, dvy, dvz] km/s
+    epoch: float  # J2000 seconds
+    delta_v: np.ndarray  # [dvx, dvy, dvz] km/s
     label: str = ""
 
     @property
     def magnitude(self) -> float:
         return float(np.linalg.norm(self.delta_v))
+
 
 @dataclass
 class Trajectory:
@@ -47,8 +48,7 @@ class Trajectory:
         return self.states[-1].epoch if self.states else 0.0
 
     def is_feasible(self, max_dv: float, max_days: float) -> bool:
-        return (self.delta_v_total <= max_dv
-                and self.duration_days <= max_days)
+        return self.delta_v_total <= max_dv and self.duration_days <= max_days
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -58,8 +58,12 @@ class Trajectory:
             "arrival_epoch_j2000": self.arrival_epoch,
             "n_maneuvers": len(self.maneuvers),
             "maneuvers": [
-                {"epoch": m.epoch, "dv_km_s": m.delta_v.tolist(),
-                 "magnitude_km_s": round(m.magnitude, 6), "label": m.label}
+                {
+                    "epoch": m.epoch,
+                    "dv_km_s": m.delta_v.tolist(),
+                    "magnitude_km_s": round(m.magnitude, 6),
+                    "label": m.label,
+                }
                 for m in self.maneuvers
             ],
             "metadata": self.metadata,

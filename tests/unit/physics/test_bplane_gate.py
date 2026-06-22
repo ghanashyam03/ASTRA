@@ -1,7 +1,6 @@
 import math
 
 import numpy as np
-
 from astra.physics.flyby import (
     build_bplane_frame,
     check_flyby_feasibility,

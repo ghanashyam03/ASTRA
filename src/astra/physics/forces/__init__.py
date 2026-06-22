@@ -1,4 +1,5 @@
 """Modular force models package for orbital perturbations."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -20,6 +21,7 @@ def build_ode(forces: list[ForceModel]) -> Callable[[float, np.ndarray], np.ndar
     the propagator and forces modules.
     """
     from astra.physics.propagator import build_ode as _build_ode
+
     return _build_ode(forces)
 
 
