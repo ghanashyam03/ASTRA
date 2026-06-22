@@ -2,6 +2,7 @@
 This is the ASTRA acceptance test. All assertions must pass.
 Requires SPICE kernels. Takes ~2–5 minutes.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,6 +11,7 @@ import pytest
 
 SPICE_AVAILABLE = (Path("data/spice_kernels") / "de440.bsp").exists()
 MISSION_FILE = Path("data/benchmarks/earth_mars_2031.yaml")
+
 
 @pytest.mark.skipif(not SPICE_AVAILABLE, reason="SPICE kernels required")
 @pytest.mark.slow
@@ -27,9 +29,7 @@ def test_earth_mars_full_pipeline() -> None:
     mission = compile_mission(dsl, kernel.ephemeris)
 
     # Use moderate budget for CI speed
-    result = optimize_mission_bayesian(
-        mission, kernel, n_trials=1000, time_limit=90.0, seed=42
-    )
+    result = optimize_mission_bayesian(mission, kernel, n_trials=1000, time_limit=90.0, seed=42)
 
     # ─── Core assertions ───────────────────────────────────────────────
     assert result.converged, "Must find at least one feasible trajectory"
@@ -58,15 +58,20 @@ def test_earth_mars_full_pipeline() -> None:
 
     # ─── Explainability assertions ─────────────────────────────────────
     trace = explain(
-        best, mission,
+        best,
+        mission,
         pareto_front=result.pareto_front,
         ephemeris=kernel.ephemeris,
     )
     trace_dict = trace.to_dict()
 
     # All top-level keys present
-    for key in ["delta_v_decomposition", "constraint_analysis",
-                "window_rationale", "pareto_analysis"]:
+    for key in [
+        "delta_v_decomposition",
+        "constraint_analysis",
+        "window_rationale",
+        "pareto_analysis",
+    ]:
         assert key in trace_dict, f"Missing explanation key: {key}"
 
     # Δv decomposition
@@ -94,9 +99,9 @@ def test_earth_mars_full_pipeline() -> None:
     assert pa["n_pareto_solutions"] >= 2
     assert pa["avg_tradeoff_km_s_per_day"] >= 0
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ASTRA EARTH-MARS 2031 ACCEPTANCE TEST PASSED")
-    print("="*60)
+    print("=" * 60)
     print(f"  Best Δv:           {dv:.4f} km/s")
     print(f"  Duration:          {days:.1f} days")
     print(f"  TMI burn:          {tmi:.4f} km/s")
@@ -107,7 +112,8 @@ def test_earth_mars_full_pipeline() -> None:
     print(f"  Evaluations:       {result.n_evaluations}")
     print(f"  Wall time:         {result.wall_time_s:.1f}s")
     print(f"  Tradeoff:          {pa['avg_tradeoff_km_s_per_day']:.5f} km/s per day saved")
-    print("="*60)
+    print("=" * 60)
+
 
 @pytest.mark.skipif(not SPICE_AVAILABLE, reason="SPICE kernels required")
 @pytest.mark.slow
@@ -120,15 +126,18 @@ def test_neural_accelerated_matches_standard() -> None:
         optimize_mission_neural_accelerated,
     )
     from astra.physics.kernel import PhysicsKernel
+
     kernel = PhysicsKernel().load()
     dsl = parse_mission_file(MISSION_FILE)
     mission = compile_mission(dsl, kernel.ephemeris)
 
-    r_standard = optimize_mission_bayesian(
-        mission, kernel, n_trials=500, time_limit=60.0, seed=42
-    )
+    r_standard = optimize_mission_bayesian(mission, kernel, n_trials=500, time_limit=60.0, seed=42)
     r_neural = optimize_mission_neural_accelerated(
-        mission, kernel, n_trials=500, time_limit=60.0, seed=42,
+        mission,
+        kernel,
+        n_trials=500,
+        time_limit=60.0,
+        seed=42,
         pretrain_samples=300,
     )
 
@@ -141,10 +150,11 @@ def test_neural_accelerated_matches_standard() -> None:
     # Neural result must be within 10% of standard (same quality range)
     dv_std = r_standard.best_trajectory.delta_v_total
     dv_neu = r_neural.best_trajectory.delta_v_total
-    assert dv_neu < dv_std * 1.10, (
-        f"Neural result {dv_neu:.3f} km/s is >10% worse than standard {dv_std:.3f} km/s"
-    )
+    assert (
+        dv_neu < dv_std * 1.10
+    ), f"Neural result {dv_neu:.3f} km/s is >10% worse than standard {dv_std:.3f} km/s"
     print(f"\nStandard: {dv_std:.4f} km/s | Neural: {dv_neu:.4f} km/s")
+
 
 @pytest.mark.skipif(not SPICE_AVAILABLE, reason="SPICE kernels required")
 def test_determinism() -> None:
@@ -164,6 +174,6 @@ def test_determinism() -> None:
     if r1.converged and r2.converged:
         assert r1.best_trajectory is not None
         assert r2.best_trajectory is not None
-        assert abs(r1.best_trajectory.delta_v_total -
-                   r2.best_trajectory.delta_v_total) < 1e-6, \
-            "Same seed must produce identical best Δv"
+        assert (
+            abs(r1.best_trajectory.delta_v_total - r2.best_trajectory.delta_v_total) < 1e-6
+        ), "Same seed must produce identical best Δv"

@@ -27,7 +27,7 @@ def check_min_periapsis(
     """
     metadata = trajectory.metadata or {}
     b_name = body if body else "EARTH"
-    
+
     try:
         origin_body = CelestialBody[b_name.upper()]
     except (KeyError, AttributeError):
@@ -64,7 +64,7 @@ def check_max_delta_v(
     actual = trajectory.delta_v_total
     satisfied = actual <= max_dv_km_s
     violation_km = max(0.0, actual - max_dv_km_s)
-    
+
     return PhysicalConstraintResult(
         constraint_type="max_delta_v",
         body=None,

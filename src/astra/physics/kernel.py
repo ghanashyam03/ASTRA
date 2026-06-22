@@ -1,6 +1,7 @@
 """Main physics kernel — unified interface to all physics computations.
 Coordinates orbital propagation, ephemeris queries, and Lambert boundary value solvers.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from astra.neural.surrogate import NeuralSurrogate
     from astra.state.trajectory import Trajectory, TrajectoryValidationResult
 
+
 class PhysicsKernel:
     """Unified physics interface. Owns the ephemeris engine and
     provides all trajectory computation primitives."""
@@ -28,6 +30,7 @@ class PhysicsKernel:
         cache: EphemerisCache | None = None,
     ) -> None:
         from astra.data.cache import EphemerisCache as _Cache
+
         if cache is None:
             cache = _Cache(max_entries=50_000)
         self.ephemeris = EphemerisEngine(
@@ -64,7 +67,7 @@ class PhysicsKernel:
         retrograde: bool = False,
     ) -> tuple[np.ndarray, np.ndarray, bool]:
         """Solve Lambert BVP using Householder/Halley iterative formulation.
-        
+
         Raises LambertSingularityError or LambertConvergenceError on failures.
         """
         return lambert_izzo(r1, r2, tof_seconds, mu, retrograde)
@@ -80,13 +83,9 @@ class PhysicsKernel:
         """Numerically propagate Keplerian state using configurable integrators and
         collision safety checks.
         """
-        return propagate_two_body(
-            state, dt_seconds, rtol=rtol, atol=atol, integrator=integrator
-        )
+        return propagate_two_body(state, dt_seconds, rtol=rtol, atol=atol, integrator=integrator)
 
-    def compute_delta_v(
-        self, state: OrbitalState, target_velocity: np.ndarray
-    ) -> float:
+    def compute_delta_v(self, state: OrbitalState, target_velocity: np.ndarray) -> float:
         """Magnitude of velocity change needed [km/s]."""
         return float(np.linalg.norm(target_velocity - state.velocity))
 
@@ -160,6 +159,7 @@ class PhysicsKernel:
 
         # Stage 2: Exact Lambert solve
         from astra.physics.lambert import find_best_transfer
+
         try:
             sol = find_best_transfer(
                 r1=r1_state.position,
@@ -191,6 +191,7 @@ class PhysicsKernel:
         v_inf_arr = r2_state.velocity - exact_v_arr
 
         from astra.physics.maneuvers import arrival_delta_v, departure_delta_v
+
         h_park = trajectory.metadata.get("parking_altitude_km", 200.0)
         h_cap = trajectory.metadata.get("capture_altitude_km", 300.0)
         capture_apoapsis_km = trajectory.metadata.get("capture_apoapsis_km", None)
@@ -232,9 +233,7 @@ class PhysicsKernel:
                 tof_min = trajectory.metadata.get(
                     "tof_min_seconds", max(1.0, tof_seconds - 100.0 * 86400.0)
                 )
-                tof_max = trajectory.metadata.get(
-                    "tof_max_seconds", tof_seconds + 100.0 * 86400.0
-                )
+                tof_max = trajectory.metadata.get("tof_max_seconds", tof_seconds + 100.0 * 86400.0)
 
                 feat = build_geometric_features(
                     dep_epoch=dep_epoch,

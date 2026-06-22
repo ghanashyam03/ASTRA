@@ -1,4 +1,5 @@
 """Logging configuration for ASTRA."""
+
 from __future__ import annotations
 
 import logging

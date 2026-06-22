@@ -13,6 +13,7 @@ class ReferenceFrame(StrEnum):
     ECLIPJ2000 = "ECLIPJ2000"
     ITRF93 = "ITRF93"
 
+
 class CelestialBody(StrEnum):
     SUN = "SUN"
     MERCURY = "MERCURY"
@@ -25,6 +26,7 @@ class CelestialBody(StrEnum):
     URANUS = "URANUS"
     NEPTUNE = "NEPTUNE"
     PLUTO = "PLUTO"
+
 
 # Standard gravitational parameters μ = GM [km³/s²]
 GM: dict[str, float] = {
@@ -55,12 +57,14 @@ PHYSICAL_RADIUS: dict[CelestialBody, float] = {
     CelestialBody.PLUTO: 1188.3,
 }
 
+
 @dataclass
 class OrbitalState:
     """Cartesian orbital state in specified reference frame."""
-    epoch: float                          # J2000 seconds
-    position: np.ndarray                  # [x, y, z] km
-    velocity: np.ndarray                  # [vx, vy, vz] km/s
+
+    epoch: float  # J2000 seconds
+    position: np.ndarray  # [x, y, z] km
+    velocity: np.ndarray  # [vx, vy, vz] km/s
     frame: ReferenceFrame = ReferenceFrame.ICRF
     central_body: CelestialBody = CelestialBody.SUN
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -105,8 +109,7 @@ class OrbitalState:
     @property
     def eccentricity_vector(self) -> np.ndarray:
         h = self.specific_angular_momentum
-        return (np.cross(self.velocity, h) / self.mu
-                - self.position / self.r)
+        return np.cross(self.velocity, h) / self.mu - self.position / self.r
 
     @property
     def eccentricity(self) -> float:

@@ -6,10 +6,11 @@ from dataclasses import dataclass
 @dataclass
 class SearchSpace:
     """Defines the bounded parameter space for trajectory optimization."""
-    departure_start: float    # J2000 seconds
-    departure_end: float      # J2000 seconds
-    tof_min: float            # seconds
-    tof_max: float            # seconds
+
+    departure_start: float  # J2000 seconds
+    departure_end: float  # J2000 seconds
+    tof_min: float  # seconds
+    tof_max: float  # seconds
 
     def __post_init__(self) -> None:
         assert self.departure_end > self.departure_start

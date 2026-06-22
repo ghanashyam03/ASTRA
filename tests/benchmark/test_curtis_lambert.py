@@ -4,12 +4,12 @@ Source: Howard D. Curtis, Orbital Mechanics for Engineering Students,
 4th edition, Example 5.2, p. 243.
 This is the gold standard analytical test for Lambert solver correctness.
 """
+
 from __future__ import annotations
 
 import math
 
 import numpy as np
-
 from astra.physics.lambert import lambert_izzo
 from astra.state.orbital_state import GM
 

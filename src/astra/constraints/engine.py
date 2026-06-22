@@ -26,7 +26,7 @@ from astra.state.trajectory import Trajectory
 @dataclass
 class ConstraintViolation:
     constraint_type: str
-    severity: str          # "hard" or "soft"
+    severity: str  # "hard" or "soft"
     message: str
     actual_value: float
     limit_value: float
@@ -75,7 +75,9 @@ class ConstraintReport:
                 "available_propellant_kg": float(self.propellant_result.available_propellant_kg),
                 "satisfied": self.propellant_result.satisfied,
                 "margin_kg": float(self.propellant_result.margin_kg),
-            } if self.propellant_result else None,
+            }
+            if self.propellant_result
+            else None,
             "temporal_results": [
                 {
                     "constraint_type": r.constraint_type,
@@ -194,8 +196,7 @@ def evaluate_all_constraints(
                 constraint_type="launch_window",
                 severity="soft",
                 message=(
-                    f"Departure epoch {trajectory.departure_epoch} is outside "
-                    f"the launch window"
+                    f"Departure epoch {trajectory.departure_epoch} is outside " f"the launch window"
                 ),
                 actual_value=trajectory.departure_epoch,
                 limit_value=mission.departure_epoch_start,

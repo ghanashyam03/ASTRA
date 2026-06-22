@@ -1,4 +1,5 @@
 """Trajectory optimization algorithms and results container."""
+
 from __future__ import annotations
 
 from astra.optimization.engine import (
@@ -36,4 +37,3 @@ __all__ = [
     "MCTSPlanner",
     "MCTSResult",
 ]
-

@@ -1,4 +1,5 @@
 """Download required SPICE kernels from NASA NAIF."""
+
 import urllib.request
 from pathlib import Path
 
@@ -7,7 +8,7 @@ KERNEL_DIR.mkdir(parents=True, exist_ok=True)
 
 KERNELS = {
     "naif0012.tls": "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/naif0012.tls",
-    "de440.bsp":    "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440.bsp",
+    "de440.bsp": "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440.bsp",
     "pck00011.tpc": "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc",
 }
 

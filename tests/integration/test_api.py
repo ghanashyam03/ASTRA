@@ -4,20 +4,22 @@ from collections.abc import Generator
 
 import numpy as np
 import pytest
-from fastapi.testclient import TestClient
-
 from astra.data.storage import TrajectoryStore
 from astra.state.orbital_state import CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
+from fastapi.testclient import TestClient
 
 EARTH_MARS_YAML = open("data/benchmarks/earth_mars_2031.yaml").read()
+
 
 @pytest.fixture(scope="module")
 def client() -> Generator[TestClient, None, None]:
     from astra.api.app import app
+
     app.state.db_path = ":memory:"
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
+
 
 def test_health_endpoint(client: TestClient) -> None:
     resp = client.get("/v1/health")
@@ -26,29 +28,32 @@ def test_health_endpoint(client: TestClient) -> None:
     assert data["status"] == "ok"
     assert "version" in data
 
+
 def test_optimize_returns_job_id(client: TestClient) -> None:
-    resp = client.post("/v1/missions/optimize",
-                       json={"mission_yaml": EARTH_MARS_YAML})
+    resp = client.post("/v1/missions/optimize", json={"mission_yaml": EARTH_MARS_YAML})
     assert resp.status_code == 202
     data = resp.json()
     assert "job_id" in data
     assert data["status"] == "queued"
 
+
 def test_status_endpoint(client: TestClient) -> None:
-    resp = client.post("/v1/missions/optimize",
-                       json={"mission_yaml": EARTH_MARS_YAML})
+    resp = client.post("/v1/missions/optimize", json={"mission_yaml": EARTH_MARS_YAML})
     job_id = resp.json()["job_id"]
     resp2 = client.get(f"/v1/missions/{job_id}/status")
     assert resp2.status_code == 200
     assert "status" in resp2.json()
 
+
 def test_unknown_job_404(client: TestClient) -> None:
     resp = client.get("/v1/missions/nonexistent-uuid-123/status")
     assert resp.status_code == 404
 
+
 def test_trajectory_not_found(client: TestClient) -> None:
     resp = client.get("/v1/trajectories/nonexistent-uuid-999")
     assert resp.status_code == 404
+
 
 def test_trajectory_store_save_and_retrieve() -> None:
     # Create a real trajectory record
@@ -56,18 +61,18 @@ def test_trajectory_store_save_and_retrieve() -> None:
         epoch=0.0,
         position=np.array([1.496e8, 0.0, 0.0]),
         velocity=np.array([0.0, 29.78, 0.0]),
-        central_body=CelestialBody.SUN
+        central_body=CelestialBody.SUN,
     )
     s2 = OrbitalState(
         epoch=86400.0,
         position=np.array([1.496e8, 2.57e6, 0.0]),
         velocity=np.array([-0.5, 29.78, 0.0]),
-        central_body=CelestialBody.SUN
+        central_body=CelestialBody.SUN,
     )
     traj = Trajectory(
         states=[s1, s2],
         maneuvers=[Maneuver(epoch=0.0, delta_v=np.array([0.1, 0.2, 0.0]), label="TMI")],
-        metadata={"departure_epoch": 0.0, "tof_days": 1.0}
+        metadata={"departure_epoch": 0.0, "tof_days": 1.0},
     )
 
     store = TrajectoryStore(":memory:")
@@ -80,18 +85,15 @@ def test_trajectory_store_save_and_retrieve() -> None:
                         "label": "TMI",
                         "magnitude_km_s": 0.2236,
                         "fraction_of_total": 1.0,
-                        "epoch_j2000": 0.0
+                        "epoch_j2000": 0.0,
                     }
                 ],
                 "total_km_s": 0.2236,
-                "margin_km_s": 0.0067
+                "margin_km_s": 0.0067,
             },
-            "constraint_analysis": {
-                "satisfied": True,
-                "constraints": []
-            },
+            "constraint_analysis": {"satisfied": True, "constraints": []},
             "window_rationale": None,
-            "pareto_analysis": None
+            "pareto_analysis": None,
         }
 
         # Save trajectory record
@@ -100,7 +102,7 @@ def test_trajectory_store_save_and_retrieve() -> None:
             mission_id="test_mission",
             explanation=explanation,
             feasible=True,
-            tags="integration-test"
+            tags="integration-test",
         )
         assert tid is not None
 
@@ -119,6 +121,7 @@ def test_trajectory_store_save_and_retrieve() -> None:
     finally:
         store.close()
 
+
 def test_sensitivity_and_pareto_endpoints(client: TestClient) -> None:
     from astra.api.app import _jobs, get_store
 
@@ -127,18 +130,18 @@ def test_sensitivity_and_pareto_endpoints(client: TestClient) -> None:
         epoch=0.0,
         position=np.array([1.496e8, 0.0, 0.0]),
         velocity=np.array([0.0, 29.78, 0.0]),
-        central_body=CelestialBody.SUN
+        central_body=CelestialBody.SUN,
     )
     s2 = OrbitalState(
         epoch=86400.0,
         position=np.array([1.496e8, 2.57e6, 0.0]),
         velocity=np.array([-0.5, 29.78, 0.0]),
-        central_body=CelestialBody.SUN
+        central_body=CelestialBody.SUN,
     )
     traj = Trajectory(
         states=[s1, s2],
         maneuvers=[Maneuver(epoch=0.0, delta_v=np.array([0.1, 0.2, 0.0]), label="TMI")],
-        metadata={"departure_epoch": 0.0, "tof_days": 1.0}
+        metadata={"departure_epoch": 0.0, "tof_days": 1.0},
     )
 
     store = get_store()
@@ -151,7 +154,7 @@ def test_sensitivity_and_pareto_endpoints(client: TestClient) -> None:
         "job_id": mock_job_id,
         "best_trajectory_id": tid,
         "mission_id": "test_mission_validation",
-        "mission_yaml": open("data/benchmarks/earth_mars_2031.yaml").read()
+        "mission_yaml": open("data/benchmarks/earth_mars_2031.yaml").read(),
     }
 
     # Test sensitivity endpoint
@@ -165,4 +168,3 @@ def test_sensitivity_and_pareto_endpoints(client: TestClient) -> None:
     data2 = resp2.json()
     assert "dv_km_s" in data2
     assert "hypervolume_indicator" in data2
-

@@ -1,4 +1,5 @@
 """Parse YAML or JSON mission specs into MissionDSL objects."""
+
 from __future__ import annotations
 
 import json
@@ -22,6 +23,7 @@ def parse_mission_file(path: str | Path) -> MissionDSL:
     else:
         raise ValueError(f"Unsupported format: {path.suffix}. Use .yaml or .json")
     return MissionDSL.model_validate(data)
+
 
 def parse_mission_string(text: str, fmt: str = "yaml") -> MissionDSL:
     """Parse YAML or JSON string → MissionDSL."""

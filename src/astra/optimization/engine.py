@@ -1,4 +1,5 @@
 """Main optimization engine for ASTRA trajectory optimization."""
+
 from __future__ import annotations
 
 import logging
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
+
 
 @dataclass
 class OptimizationResult:
@@ -105,6 +107,7 @@ def evaluate_transfer(
 
     if use_soi_patching:
         from astra.physics.maneuvers import arrival_delta_v, departure_delta_v
+
         dv1_mag = departure_delta_v(v_inf_dep, parking_altitude_km, origin_body)
         dv2_mag = arrival_delta_v(
             v_inf_arr,
@@ -153,6 +156,7 @@ def evaluate_transfer(
         },
     )
 
+
 def compute_porkchop(
     mission: CompiledMission,
     kernel: PhysicsKernel,
@@ -190,7 +194,13 @@ def compute_porkchop(
             except Exception:
                 continue
             traj = evaluate_transfer(
-                r1, v1, r2, v2, dep, tof, mu_sun,
+                r1,
+                v1,
+                r2,
+                v2,
+                dep,
+                tof,
+                mu_sun,
                 origin_body=mission.origin_body.name,
                 destination_body=mission.destination_body.name,
                 parking_altitude_km=mission.parking_altitude_km,
@@ -202,6 +212,7 @@ def compute_porkchop(
                 dv_grid[i, j] = traj.delta_v_total
 
     return dep_epochs, tof_arr / 86400.0, dv_grid
+
 
 def _get_hard_limits(mission: CompiledMission) -> tuple[float, float]:
     max_dv = 99.0
@@ -220,14 +231,15 @@ def _is_feasible(traj: Trajectory | None, mission: CompiledMission) -> bool:
     report = evaluate_all_constraints(traj, mission, mission.spacecraft)
     return all(v.constraint_type == "propellant_budget" for v in report.hard_violations)
 
+
 def optimize_mission_bayesian(
     mission: CompiledMission,
     kernel: PhysicsKernel,
     n_trials: int = 2000,
     time_limit: float = 120.0,
     seed: int = 42,
-    pinn: object = None,        # NEW: optional LambertPINN for warm-start
-    pinn_warm_start_k: int = 50, # NEW: number of PINN-suggested initial points
+    pinn: object = None,  # NEW: optional LambertPINN for warm-start
+    pinn_warm_start_k: int = 50,  # NEW: number of PINN-suggested initial points
 ) -> OptimizationResult:
     """Bayesian optimization (Optuna TPE) over departure epoch and TOF."""
     mu_sun = GM["SUN"]
@@ -256,7 +268,13 @@ def optimize_mission_bayesian(
             return 99.0, 999.0
 
         traj = evaluate_transfer(
-            r1, v1, r2, v2, dep, tof, mu_sun,
+            r1,
+            v1,
+            r2,
+            v2,
+            dep,
+            tof,
+            mu_sun,
             origin_body=mission.origin_body.name,
             destination_body=mission.destination_body.name,
             parking_altitude_km=mission.parking_altitude_km,
@@ -285,7 +303,7 @@ def optimize_mission_bayesian(
 
     # ─── PINN warm-start ───────────────────────────────────────────────────────
     warm_start_trials: list[dict[str, float]] = []
-    
+
     if pinn is not None and pinn.is_trained():  # type: ignore[attr-defined]
         logger.info("pinn_warmstart_begin", k=pinn_warm_start_k)  # type: ignore[call-arg]
         # Generate a fine grid of candidate points
@@ -301,12 +319,13 @@ def optimize_mission_bayesian(
             mission.tof_max_seconds,
             n_grid,
         )
-        
+
         from astra.explainability.window_rationale import compute_synodic_period
         from astra.neural.features import build_geometric_features
+
         syn_days = compute_synodic_period(mission.origin_body, mission.destination_body)
         synodic_s = syn_days * 86400.0 if syn_days != float("inf") else 0.0
-        
+
         features_list = []
         valid_mask = np.zeros(n_grid, dtype=bool)
         for idx in range(n_grid):
@@ -317,38 +336,48 @@ def optimize_mission_bayesian(
                 v1 = kernel.get_body_state(mission.origin_body, dep).velocity
                 r2 = kernel.get_body_state(mission.destination_body, dep + tof).position
                 feat = build_geometric_features(
-                    dep, tof, r1, v1, r2,
-                    mission.departure_epoch_start, mission.departure_epoch_end,
-                    mission.tof_min_seconds, mission.tof_max_seconds, synodic_s
+                    dep,
+                    tof,
+                    r1,
+                    v1,
+                    r2,
+                    mission.departure_epoch_start,
+                    mission.departure_epoch_end,
+                    mission.tof_min_seconds,
+                    mission.tof_max_seconds,
+                    synodic_s,
                 )
                 features_list.append(feat)
                 valid_mask[idx] = True
             except Exception:
                 features_list.append(np.zeros(8, dtype=np.float32))
-        
+
         valid_indices = np.where(valid_mask)[0]
         if len(valid_indices) > 0:
             X_valid = np.array([features_list[i] for i in valid_indices], dtype=np.float32)
             dv_preds = pinn.predict_batch(X_valid)  # type: ignore[attr-defined]
-            
+
             # Select top-k lowest predicted Δv as warm-start
             top_k_in_valid = min(pinn_warm_start_k, len(valid_indices))
             best_in_valid = np.argsort(dv_preds)[:top_k_in_valid]
-            
+
             for rank_idx in best_in_valid:
                 orig_idx = valid_indices[rank_idx]
-                warm_start_trials.append({
-                    "departure_epoch": float(dep_candidates[orig_idx]),
-                    "tof_seconds": float(tof_candidates[orig_idx]),
-                })
-            logger.info("pinn_warmstart_complete",
-                        n_candidates=len(warm_start_trials),
-                        min_pred_dv=float(dv_preds[best_in_valid[0]]))  # type: ignore[call-arg]
-    
+                warm_start_trials.append(
+                    {
+                        "departure_epoch": float(dep_candidates[orig_idx]),
+                        "tof_seconds": float(tof_candidates[orig_idx]),
+                    }
+                )
+            logger.info(
+                "pinn_warmstart_complete",
+                n_candidates=len(warm_start_trials),
+                min_pred_dv=float(dv_preds[best_in_valid[0]]),
+            )  # type: ignore[call-arg]
+
     # ─── Enqueue warm-start trials ─────────────────────────────────────────────
     for ws in warm_start_trials:
         study.enqueue_trial(ws)
-
 
     study.optimize(
         objective,
@@ -371,7 +400,13 @@ def optimize_mission_bayesian(
                 r2 = kernel.get_body_state(mission.destination_body, dep + tof).position
                 v2 = kernel.get_body_state(mission.destination_body, dep + tof).velocity
                 traj = evaluate_transfer(
-                    r1, v1, r2, v2, dep, tof, mu_sun,
+                    r1,
+                    v1,
+                    r2,
+                    v2,
+                    dep,
+                    tof,
+                    mu_sun,
                     origin_body=mission.origin_body.name,
                     destination_body=mission.destination_body.name,
                     parking_altitude_km=mission.parking_altitude_km,
@@ -399,6 +434,7 @@ def optimize_mission_bayesian(
         wall_time_s=wall_time,
         converged=best is not None,
     )
+
 
 def optimize_mission_neural_accelerated(
     mission: CompiledMission,
@@ -454,17 +490,16 @@ def optimize_mission_neural_accelerated(
 
     # Phase 3: Bayesian optimization with neural filter
     import optuna
+
     all_trajs: list[Trajectory] = []
     n_skipped = 0
 
     def objective_accelerated(trial: optuna.Trial) -> tuple[float, float]:
         nonlocal n_skipped
-        dep = trial.suggest_float("departure_epoch",
-                                  mission.departure_epoch_start,
-                                  mission.departure_epoch_end)
-        tof = trial.suggest_float("tof_seconds",
-                                  mission.tof_min_seconds,
-                                  mission.tof_max_seconds)
+        dep = trial.suggest_float(
+            "departure_epoch", mission.departure_epoch_start, mission.departure_epoch_end
+        )
+        tof = trial.suggest_float("tof_seconds", mission.tof_min_seconds, mission.tof_max_seconds)
 
         # Get planetary states for feature computation
         try:
@@ -498,7 +533,13 @@ def optimize_mission_neural_accelerated(
 
         # Physics evaluation (using already retrieved states)
         traj = evaluate_transfer(
-            r1, v1, r2, v2, dep, tof, mu_sun,
+            r1,
+            v1,
+            r2,
+            v2,
+            dep,
+            tof,
+            mu_sun,
             origin_body=mission.origin_body.name,
             destination_body=mission.destination_body.name,
             parking_altitude_km=mission.parking_altitude_km,
@@ -525,8 +566,10 @@ def optimize_mission_neural_accelerated(
     study.optimize(objective_accelerated, n_trials=n_trials, timeout=time_limit)
 
     wall_time = time_mod.time() - start_time
-    logger.info(f"Neural filter skipped {n_skipped}/{n_trials} evaluations "
-                f"({100*n_skipped/max(n_trials,1):.1f}% saved).")
+    logger.info(
+        f"Neural filter skipped {n_skipped}/{n_trials} evaluations "
+        f"({100*n_skipped/max(n_trials,1):.1f}% saved)."
+    )
 
     pareto = []
     for trial in study.best_trials:
@@ -540,7 +583,13 @@ def optimize_mission_neural_accelerated(
                 r2 = kernel.get_body_state(mission.destination_body, dep + tof).position
                 v2 = kernel.get_body_state(mission.destination_body, dep + tof).velocity
                 traj = evaluate_transfer(
-                    r1, v1, r2, v2, dep, tof, mu_sun,
+                    r1,
+                    v1,
+                    r2,
+                    v2,
+                    dep,
+                    tof,
+                    mu_sun,
                     origin_body=mission.origin_body.name,
                     destination_body=mission.destination_body.name,
                     parking_altitude_km=mission.parking_altitude_km,
@@ -573,7 +622,7 @@ def optimize_mission_hybrid(
     mission: CompiledMission,
     kernel: PhysicsKernel,
     n_trials_bayesian: int = 1500,
-    n_refine_top_k: int = 5,     # refine top-K Bayesian solutions
+    n_refine_top_k: int = 5,  # refine top-K Bayesian solutions
     time_limit: float = 150.0,
     seed: int = 42,
 ) -> OptimizationResult:
@@ -589,12 +638,14 @@ def optimize_mission_hybrid(
     import time as t
 
     from astra.optimization.gradient import refine_trajectory_lbfgsb
+
     start = t.time()
 
     # Phase 1: Bayesian global search
     phase1_limit = time_limit * 0.75
     result_p1 = optimize_mission_bayesian(
-        mission, kernel,
+        mission,
+        kernel,
         n_trials=n_trials_bayesian,
         time_limit=phase1_limit,
         seed=seed,
@@ -646,7 +697,13 @@ def optimize_mission_hybrid(
                 except Exception:
                     return 99.0
                 t_new = evaluate_transfer(
-                    r1, v1, r2, v2, dep, tof, mu_sun,
+                    r1,
+                    v1,
+                    r2,
+                    v2,
+                    dep,
+                    tof,
+                    mu_sun,
                     origin_body=mission.origin_body.name,
                     destination_body=mission.destination_body.name,
                     parking_altitude_km=mission.parking_altitude_km,
@@ -661,7 +718,9 @@ def optimize_mission_hybrid(
                 return t_new.delta_v_total
 
             ref_result = refine_trajectory_lbfgsb(
-                obj, x0, bounds,
+                obj,
+                x0,
+                bounds,
                 eps=1.0,
                 gtol=1e-12,
                 ftol=1e-15,
@@ -676,7 +735,13 @@ def optimize_mission_hybrid(
                     r2 = kernel.get_body_state(mission.destination_body, dep_r + tof_r).position
                     v2 = kernel.get_body_state(mission.destination_body, dep_r + tof_r).velocity
                     t_new = evaluate_transfer(
-                        r1, v1, r2, v2, dep_r, tof_r, mu_sun,
+                        r1,
+                        v1,
+                        r2,
+                        v2,
+                        dep_r,
+                        tof_r,
+                        mu_sun,
                         origin_body=mission.origin_body.name,
                         destination_body=mission.destination_body.name,
                         parking_altitude_km=mission.parking_altitude_km,
@@ -686,8 +751,7 @@ def optimize_mission_hybrid(
                     )
                     if t_new and _is_feasible(t_new, mission):
                         all_refined.append(t_new)
-                        if (best_refined is None or
-                                t_new.delta_v_total < best_refined.delta_v_total):
+                        if best_refined is None or t_new.delta_v_total < best_refined.delta_v_total:
                             best_refined = t_new
                 except Exception:
                     pass
@@ -811,6 +875,7 @@ def optimize_mission_mcts(
             v_arr = sol.v2
             v2_body = r2_state.velocity
             from astra.physics.maneuvers import arrival_delta_v
+
             h_cap = mission.capture_altitude_km
             v_inf_arr = v2_body - v_arr
             dv_cap = arrival_delta_v(v_inf_arr, h_cap, best_path[-1].body)
@@ -819,10 +884,10 @@ def optimize_mission_mcts(
 
         # Create maneuvers for transitions before the last one
         for i in range(1, n_states - 1):
-            dv_mag = best_path[i].dv_spent - best_path[i-1].dv_spent
+            dv_mag = best_path[i].dv_spent - best_path[i - 1].dv_spent
             delta_v_vec = np.array([dv_mag, 0.0, 0.0], dtype=np.float64)
             label = "DEP" if i == 1 else f"FLY_{best_path[i-1].body}"
-            epoch = best_path[i-1].epoch
+            epoch = best_path[i - 1].epoch
             maneuvers.append(Maneuver(epoch=epoch, delta_v=delta_v_vec, label=label))
 
         # Handle the last transition: split into remaining dv and capture dv
@@ -831,28 +896,36 @@ def optimize_mission_mcts(
 
         if n_states == 2:
             # Direct transfer: DEP and CAP
-            maneuvers.append(Maneuver(
-                epoch=best_path[0].epoch,
-                delta_v=np.array([dv_remain, 0.0, 0.0], dtype=np.float64),
-                label="DEP"
-            ))
-            maneuvers.append(Maneuver(
-                epoch=best_path[1].epoch,
-                delta_v=np.array([dv_cap, 0.0, 0.0], dtype=np.float64),
-                label="CAP"
-            ))
+            maneuvers.append(
+                Maneuver(
+                    epoch=best_path[0].epoch,
+                    delta_v=np.array([dv_remain, 0.0, 0.0], dtype=np.float64),
+                    label="DEP",
+                )
+            )
+            maneuvers.append(
+                Maneuver(
+                    epoch=best_path[1].epoch,
+                    delta_v=np.array([dv_cap, 0.0, 0.0], dtype=np.float64),
+                    label="CAP",
+                )
+            )
         else:
             # Multi-leg transfer: FLY_body and CAP
-            maneuvers.append(Maneuver(
-                epoch=best_path[-2].epoch,
-                delta_v=np.array([dv_remain, 0.0, 0.0], dtype=np.float64),
-                label=f"FLY_{best_path[-2].body}"
-            ))
-            maneuvers.append(Maneuver(
-                epoch=best_path[-1].epoch,
-                delta_v=np.array([dv_cap, 0.0, 0.0], dtype=np.float64),
-                label="CAP"
-            ))
+            maneuvers.append(
+                Maneuver(
+                    epoch=best_path[-2].epoch,
+                    delta_v=np.array([dv_remain, 0.0, 0.0], dtype=np.float64),
+                    label=f"FLY_{best_path[-2].body}",
+                )
+            )
+            maneuvers.append(
+                Maneuver(
+                    epoch=best_path[-1].epoch,
+                    delta_v=np.array([dv_cap, 0.0, 0.0], dtype=np.float64),
+                    label="CAP",
+                )
+            )
 
         best_trajectory = Trajectory(
             states=[dep_state, arr_state],
@@ -862,7 +935,7 @@ def optimize_mission_mcts(
                 "best_dv_total": mcts_result.best_dv_total,
                 "n_iterations": mcts_result.n_iterations,
                 "wall_time_s": mcts_result.wall_time_s,
-            }
+            },
         )
         all_trajectories = [best_trajectory]
 
@@ -887,31 +960,34 @@ def optimize_mission_pinn_accelerated(
     pinn_epochs: int = 50,
 ) -> OptimizationResult:
     """Convenience function: train PINN on mission data, then use for warm-start.
-    
+
     Workflow:
     1. Generate pinn_train_samples from physics kernel (uses evaluate_transfer)
     2. Train LambertPINN for pinn_epochs epochs
     3. Use PINN to warm-start optimize_mission_bayesian with top-50 candidates
     4. Return OptimizationResult
-    
+
     Expected benefit: same Δv quality as optimize_mission_bayesian with
     2000 trials, achieved in ~1000 trials (50% fewer physics evaluations).
     """
     from astra.neural.pinn import LambertPINN
     from astra.neural.training.pipeline import generate_pinn_dataset
-    
-    logger.info("pinn_accel_start",
-                mission_id=mission.mission_id,
-                train_samples=pinn_train_samples)  # type: ignore[call-arg]
-    
+
+    logger.info("pinn_accel_start", mission_id=mission.mission_id, train_samples=pinn_train_samples)  # type: ignore[call-arg]
+
     # Step 1: Generate training data
     X, dv_y, r1_norms, r2_norms, tof_s = generate_pinn_dataset(
-        kernel, mission.origin_body, mission.destination_body,
-        mission.departure_epoch_start, mission.departure_epoch_end,
-        mission.tof_min_seconds, mission.tof_max_seconds,
-        n_samples=pinn_train_samples, seed=seed,
+        kernel,
+        mission.origin_body,
+        mission.destination_body,
+        mission.departure_epoch_start,
+        mission.departure_epoch_end,
+        mission.tof_min_seconds,
+        mission.tof_max_seconds,
+        n_samples=pinn_train_samples,
+        seed=seed,
     )
-    
+
     # Step 2: Train PINN
     pinn = LambertPINN()
     losses = pinn.train_on_dataset(
@@ -923,10 +999,10 @@ def optimize_mission_pinn_accelerated(
         epochs=pinn_epochs,
         batch_size=128,
     )
-    logger.info("pinn_accel_trained",
-                final_loss=losses[-1] if losses else -1.0,
-                n_epochs=pinn_epochs)  # type: ignore[call-arg]
-    
+    logger.info(
+        "pinn_accel_trained", final_loss=losses[-1] if losses else -1.0, n_epochs=pinn_epochs
+    )  # type: ignore[call-arg]
+
     # Step 3: Warm-start Bayesian search with PINN
     return optimize_mission_bayesian(
         mission=mission,
@@ -941,7 +1017,3 @@ def optimize_mission_pinn_accelerated(
 
 # Alias to satisfy prerequisite checks
 optimize_mission_with_flyby = optimize_mission_mcts
-
-
-
-

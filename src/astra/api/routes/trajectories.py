@@ -4,6 +4,7 @@ Contains:
 - GET /v1/trajectories/{trajectory_id}: Get saved trajectory data.
 - GET /v1/trajectories/{trajectory_id}/explanation: Get explainability breakdown for a trajectory.
 """
+
 from __future__ import annotations
 
 from typing import Any

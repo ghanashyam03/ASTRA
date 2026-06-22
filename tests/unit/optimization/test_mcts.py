@@ -1,13 +1,13 @@
 from pathlib import Path
 
 import pytest
-
 from astra.dsl.compiler import compile_mission
 from astra.dsl.parser import parse_mission_file
 from astra.optimization.mcts import MCTSPlanner, MCTSResult
 from astra.physics.kernel import PhysicsKernel
 
 SPICE = (Path("data/spice_kernels") / "de440.bsp").exists()
+
 
 @pytest.mark.skipif(not SPICE, reason="SPICE kernels required")
 def test_mcts_initialization_and_properties() -> None:
@@ -87,7 +87,7 @@ def test_mcts_runs_successfully_for_earth_mars() -> None:
     assert isinstance(result, MCTSResult)
     paths = result.all_paths
     assert isinstance(paths, list)
-    
+
     # If any paths reached Mars, check their validity
     for path in paths:
         assert path[0].body == "EARTH"

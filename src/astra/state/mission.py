@@ -5,6 +5,7 @@ of a mission optimization run (in-progress, completed, failed) and are
 used as interchange types between the optimization engine, constraints
 engine, and explainability engine.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -14,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from astra.dsl.compiler import CompiledMission
     from astra.optimization.engine import OptimizationResult
-
 
 
 class MissionPhase(StrEnum):
@@ -37,9 +37,9 @@ class MissionLeg:
     """A single transfer arc in a multi-body mission."""
 
     phase: MissionPhase
-    origin: str              # body name
+    origin: str  # body name
     destination: str
-    departure_epoch: float   # J2000 seconds
+    departure_epoch: float  # J2000 seconds
     arrival_epoch: float
     delta_v_km_s: float
     tof_days: float
@@ -119,29 +119,30 @@ def mission_summary_from_result(
         )
     legs = []
     for i, m in enumerate(best.maneuvers):
-        phase = MissionPhase.DEPARTURE if i == 0 else (
-            MissionPhase.ARRIVAL if i == len(best.maneuvers) - 1
-            else MissionPhase.FLYBY
+        phase = (
+            MissionPhase.DEPARTURE
+            if i == 0
+            else (MissionPhase.ARRIVAL if i == len(best.maneuvers) - 1 else MissionPhase.FLYBY)
         )
         origin_name = mission.origin_body.value if i == 0 else "UNKNOWN"
         dest_name = mission.destination_body.value if i == len(best.maneuvers) - 1 else "UNKNOWN"
         tof = 0.0
         if i + 1 < len(best.states):
-            tof = (best.states[i+1].epoch - best.states[i].epoch) / 86400.0
-        legs.append(MissionLeg(
-            phase=phase,
-            origin=origin_name,
-            destination=dest_name,
-            departure_epoch=best.states[i].epoch if i < len(best.states) else 0.0,
-            arrival_epoch=best.states[i+1].epoch if i+1 < len(best.states) else 0.0,
-            delta_v_km_s=m.magnitude,
-            tof_days=tof,
-            metadata={"label": m.label},
-        ))
+            tof = (best.states[i + 1].epoch - best.states[i].epoch) / 86400.0
+        legs.append(
+            MissionLeg(
+                phase=phase,
+                origin=origin_name,
+                destination=dest_name,
+                departure_epoch=best.states[i].epoch if i < len(best.states) else 0.0,
+                arrival_epoch=best.states[i + 1].epoch if i + 1 < len(best.states) else 0.0,
+                delta_v_km_s=m.magnitude,
+                tof_days=tof,
+                metadata={"label": m.label},
+            )
+        )
     flyby_bodies = [
-        m.label.replace("FLY_", "")
-        for m in best.maneuvers
-        if m.label.startswith("FLY_")
+        m.label.replace("FLY_", "") for m in best.maneuvers if m.label.startswith("FLY_")
     ]
     return MissionSummary(
         mission_id=mission.mission_id,

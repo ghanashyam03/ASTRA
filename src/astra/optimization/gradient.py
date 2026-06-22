@@ -2,6 +2,7 @@
 Uses scipy.optimize.minimize with finite-difference gradient computation.
 Designed to refine a solution found by global (Bayesian) search.
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,23 +15,25 @@ from scipy.optimize import OptimizeResult, minimize
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class LocalRefinementResult:
-    x_refined: np.ndarray     # [dep_epoch, tof_seconds]
-    f_refined: float          # refined objective value (Δv in km/s)
-    x_initial: np.ndarray     # starting point from Bayesian search
-    f_initial: float          # initial objective value
-    improvement_km_s: float   # f_initial - f_refined (positive = improved)
+    x_refined: np.ndarray  # [dep_epoch, tof_seconds]
+    f_refined: float  # refined objective value (Δv in km/s)
+    x_initial: np.ndarray  # starting point from Bayesian search
+    f_initial: float  # initial objective value
+    improvement_km_s: float  # f_initial - f_refined (positive = improved)
     n_evaluations: int
     converged: bool
     message: str
     wall_time_s: float
 
+
 def refine_trajectory_lbfgsb(
     objective_fn: Callable[[np.ndarray], float],
     x0: np.ndarray,
     bounds: list[tuple[float, float]],
-    eps: float = 1e-4,          # finite-difference step size (seconds for epochs, seconds for TOF)
+    eps: float = 1e-4,  # finite-difference step size (seconds for epochs, seconds for TOF)
     ftol: float = 1e-9,
     gtol: float = 1e-6,
     max_iter: int = 200,
@@ -70,7 +73,7 @@ def refine_trajectory_lbfgsb(
                 "ftol": ftol,
                 "gtol": gtol,
                 "maxiter": max_iter,
-                "eps": eps,   # finite-diff step size
+                "eps": eps,  # finite-diff step size
             },
         )
         x_ref = result.x
@@ -87,8 +90,10 @@ def refine_trajectory_lbfgsb(
     improvement = max(0.0, f0 - f_ref)
 
     if improvement > 0.001:
-        logger.info(f"Gradient refinement improved Δv by {improvement:.4f} km/s "
-                    f"in {n_evals[0]} evals ({elapsed:.2f}s)")
+        logger.info(
+            f"Gradient refinement improved Δv by {improvement:.4f} km/s "
+            f"in {n_evals[0]} evals ({elapsed:.2f}s)"
+        )
     else:
         logger.info(f"Gradient refinement: no improvement (Δv {f_ref:.4f} km/s, {elapsed:.2f}s)")
 

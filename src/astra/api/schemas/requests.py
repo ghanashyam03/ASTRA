@@ -5,9 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class OptimizeRequest(BaseModel):
     mission_yaml: str
-    model_config = ConfigDict(json_schema_extra={
-        "example": {"mission_yaml": "version: '1.0'\nmission_id: test\n..."}
-    })
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"mission_yaml": "version: '1.0'\nmission_id: test\n..."}}
+    )
 
 
 class PorkchopRequest(BaseModel):

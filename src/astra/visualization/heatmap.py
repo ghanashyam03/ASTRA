@@ -1,4 +1,5 @@
 """Convert porkchop grid data to Plotly-ready heatmap structure."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,9 +10,9 @@ import numpy as np
 
 @dataclass
 class PorkchopPlotData:
-    departure_labels: list[str]   # ISO date strings
-    tof_labels: list[float]       # days
-    dv_grid: list[list[float | None]]    # (n_dep, n_tof) — NaN replaced with null
+    departure_labels: list[str]  # ISO date strings
+    tof_labels: list[float]  # days
+    dv_grid: list[list[float | None]]  # (n_dep, n_tof) — NaN replaced with null
     dv_min: float
     dv_max: float
     optimal_departure_idx: int
@@ -29,6 +30,7 @@ class PorkchopPlotData:
                 "tof_idx": self.optimal_tof_idx,
             },
         }
+
 
 def build_porkchop_plot(
     dep_epochs: np.ndarray,

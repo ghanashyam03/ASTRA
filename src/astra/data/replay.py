@@ -3,6 +3,7 @@ A ReplayManifest captures everything needed to exactly reproduce
 an optimization result: mission DSL text, kernel checksums,
 random seed, software version, and the optimization parameters.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -26,7 +27,7 @@ def _sha256_file(path: Path) -> str:
 @dataclass
 class ReplayManifest:
     mission_id: str
-    mission_yaml: str                    # full DSL text
+    mission_yaml: str  # full DSL text
     seed: int
     n_trials: int
     time_limit_seconds: float
@@ -41,8 +42,7 @@ class ReplayManifest:
     @classmethod
     def load(cls, path: Path) -> ReplayManifest:
         data = json.loads(path.read_text())
-        return cls(**{k: v for k, v in data.items()
-                      if k in cls.__dataclass_fields__})
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
     def verify_kernels(self, kernel_dir: Path) -> bool:
         """Return True if all checksums match current kernel files."""

@@ -3,6 +3,7 @@
 Run manually after verified improvement.
 Usage: uv run python tests/benchmark/update_baseline.py
 """
+
 from __future__ import annotations
 
 import json
@@ -36,9 +37,7 @@ def update_baseline() -> dict[str, Any] | None:
             "pareto_size": len(result.pareto_front),
             "n_evaluations": result.n_evaluations,
             "n_feasible": result.n_feasible,
-            "hypervolume_indicator": round(quality.hypervolume_indicator, 4)
-            if quality
-            else 0.0,
+            "hypervolume_indicator": round(quality.hypervolume_indicator, 4) if quality else 0.0,
         }
     }
 

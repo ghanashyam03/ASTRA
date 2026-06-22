@@ -14,6 +14,7 @@ class ParetoPoint:
     duration_days: float
     rank: int
 
+
 @dataclass
 class ParetoAnalysis:
     points: list[ParetoPoint]
@@ -36,6 +37,7 @@ class ParetoAnalysis:
             ),
         }
 
+
 def analyze_pareto(pareto_trajectories: list[Trajectory]) -> ParetoAnalysis:
     if not pareto_trajectories:
         raise ValueError("Cannot analyze empty Pareto front")
@@ -53,8 +55,7 @@ def analyze_pareto(pareto_trajectories: list[Trajectory]) -> ParetoAnalysis:
         tradeoff = 0.0
 
     points = [
-        ParetoPoint(delta_v_km_s=float(dvs[i]),
-                    duration_days=float(days[i]), rank=i)
+        ParetoPoint(delta_v_km_s=float(dvs[i]), duration_days=float(days[i]), rank=i)
         for i in range(len(pareto_trajectories))
     ]
     return ParetoAnalysis(

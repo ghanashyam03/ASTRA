@@ -1,4 +1,5 @@
 """ASTRA command-line interface for mission optimization."""
+
 from __future__ import annotations
 
 import argparse
@@ -9,6 +10,7 @@ from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("astra.cli")
+
 
 def cmd_optimize(args: argparse.Namespace) -> int:
     from astra.data.replay import ReplayManifest
@@ -57,7 +59,8 @@ def cmd_optimize(args: argparse.Namespace) -> int:
 
     if strategy == "neural":
         result = optimize_mission_neural_accelerated(
-            mission, kernel,
+            mission,
+            kernel,
             n_trials=trials,
             time_limit=time_limit,
             seed=mission.seed,
@@ -65,8 +68,10 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         )
     elif strategy == "pinn":
         from astra.optimization.engine import optimize_mission_pinn_accelerated
+
         result = optimize_mission_pinn_accelerated(
-            mission, kernel,
+            mission,
+            kernel,
             n_trials=trials,
             time_limit=time_limit,
             seed=mission.seed,
@@ -74,42 +79,49 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         )
     elif strategy == "hybrid":
         from astra.optimization.engine import optimize_mission_hybrid
+
         result = optimize_mission_hybrid(
-            mission, kernel,
+            mission,
+            kernel,
             n_trials_bayesian=trials,
             time_limit=time_limit,
             seed=mission.seed,
         )
     elif strategy == "mcts":
         from astra.optimization.engine import optimize_mission_mcts
+
         result = optimize_mission_mcts(
-            mission, kernel,
+            mission,
+            kernel,
             n_iterations=args.trials,
             seed=mission.seed,
         )
     else:
         result = optimize_mission_bayesian(
-            mission, kernel,
+            mission,
+            kernel,
             n_trials=trials,
             time_limit=time_limit,
             seed=mission.seed,
         )
 
-
     if not result.converged or result.best_trajectory is None:
         logger.error("No feasible trajectory found.")
         return 1
 
-    logger.info(f"DONE. Evaluations: {result.n_evaluations}, "
-                f"Feasible: {result.n_feasible}, "
-                f"Time: {result.wall_time_s:.1f}s")
+    logger.info(
+        f"DONE. Evaluations: {result.n_evaluations}, "
+        f"Feasible: {result.n_feasible}, "
+        f"Time: {result.wall_time_s:.1f}s"
+    )
 
     best = result.best_trajectory
     logger.info(f"Best Δv: {best.delta_v_total:.4f} km/s")
     logger.info(f"Duration: {best.duration_days:.1f} days")
 
     trace = explain(
-        best, mission,
+        best,
+        mission,
         pareto_front=result.pareto_front,
         ephemeris=kernel.ephemeris,
     )
@@ -128,6 +140,7 @@ def cmd_optimize(args: argparse.Namespace) -> int:
 
     if args.save_manifest:
         from astra.data.replay import build_manifest
+
         if args.mission:
             yaml_text = Path(args.mission).read_text(encoding="utf-8")
         else:
@@ -146,6 +159,7 @@ def cmd_optimize(args: argparse.Namespace) -> int:
 
     return 0
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="ASTRA trajectory optimizer")
     sub = parser.add_subparsers(dest="command")
@@ -154,25 +168,35 @@ def main() -> None:
     opt.add_argument("mission", nargs="?", help="Path to mission YAML file")
     opt.add_argument("--trials", type=int, default=2000)
     opt.add_argument("--time-limit", type=int, default=120)
-    opt.add_argument("--strategy", choices=["bayesian", "neural", "hybrid", "mcts", "pinn"],
-                     default="bayesian", help="Optimization strategy to use")
-    opt.add_argument("--neural", action="store_true",
-                     help="Use neural-accelerated optimization (legacy)")
-    opt.add_argument("--pretrain", type=int, default=500,
-                     help="Samples for neural pretraining")
-    opt.add_argument("--kernels", default="data/spice_kernels",
-                     help="Path to SPICE kernel directory")
+    opt.add_argument(
+        "--strategy",
+        choices=["bayesian", "neural", "hybrid", "mcts", "pinn"],
+        default="bayesian",
+        help="Optimization strategy to use",
+    )
+    opt.add_argument(
+        "--neural", action="store_true", help="Use neural-accelerated optimization (legacy)"
+    )
+    opt.add_argument("--pretrain", type=int, default=500, help="Samples for neural pretraining")
+    opt.add_argument(
+        "--kernels", default="data/spice_kernels", help="Path to SPICE kernel directory"
+    )
     opt.add_argument("-o", "--output", help="Output JSON file path")
-    opt.add_argument("--save-manifest", metavar="PATH",
-                     help="Save replay manifest to this path after optimization")
-    opt.add_argument("--replay", metavar="PATH",
-                     help="Replay optimization from a saved manifest file")
+    opt.add_argument(
+        "--save-manifest",
+        metavar="PATH",
+        help="Save replay manifest to this path after optimization",
+    )
+    opt.add_argument(
+        "--replay", metavar="PATH", help="Replay optimization from a saved manifest file"
+    )
 
     args = parser.parse_args()
     if args.command == "optimize":
         sys.exit(cmd_optimize(args))
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     main()

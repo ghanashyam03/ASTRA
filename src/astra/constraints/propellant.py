@@ -23,18 +23,18 @@ def check_propellant_budget(
 ) -> PropellantConstraintResult:
     """Evaluates the propellant budget constraint using the Tsiolkovsky rocket equation."""
     ve = spacecraft.propulsion.exhaust_velocity  # km/s
-    dv_required = trajectory.delta_v_total       # km/s
-    dv_available = spacecraft.delta_v_budget()   # km/s
-    
+    dv_required = trajectory.delta_v_total  # km/s
+    dv_available = spacecraft.delta_v_budget()  # km/s
+
     if ve > 0:
         mass_ratio_required = math.exp(dv_required / ve)
         m0 = spacecraft.total_mass_kg
         m_prop_required = m0 * (1 - 1.0 / mass_ratio_required)
     else:
         m_prop_required = 0.0
-        
+
     m_prop_available = spacecraft.propulsion.propellant_mass_kg
-    
+
     satisfied = dv_required <= dv_available
     margin_kg = m_prop_available - m_prop_required
 

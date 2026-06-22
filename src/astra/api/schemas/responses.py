@@ -65,4 +65,3 @@ class MissionSummaryResponse(BaseModel):
     total_duration_days: float
     legs: list[MissionLegResponse]
     optimization: OptimizationInfo
-

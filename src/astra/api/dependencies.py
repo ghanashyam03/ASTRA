@@ -8,7 +8,7 @@ from astra.physics.kernel import PhysicsKernel
 # Global state (module-level singletons, not thread-safe — single worker)
 _kernel: PhysicsKernel | None = None
 _store: TrajectoryStore | None = None
-_jobs: dict[str, dict[str, Any]] = {}   # in-memory job tracking
+_jobs: dict[str, dict[str, Any]] = {}  # in-memory job tracking
 
 
 def get_kernel() -> PhysicsKernel:

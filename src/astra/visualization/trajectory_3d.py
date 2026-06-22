@@ -1,4 +1,5 @@
 """Convert trajectories to 3D rendering-ready data structures."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,11 +11,13 @@ from astra.state.trajectory import Trajectory
 
 AU = 1.496e8  # km
 
+
 @dataclass
 class Body3DData:
     name: str
-    positions_au: list[list[float]]   # [x,y,z] in AU for each epoch
+    positions_au: list[list[float]]  # [x,y,z] in AU for each epoch
     epochs: list[float]
+
 
 @dataclass
 class TrajectoryRenderData:
@@ -51,16 +54,17 @@ class TrajectoryRenderData:
             },
         }
 
+
 def build_render_data(
     trajectory: Trajectory,
     mission_id: str,
     body_states: dict[str, list[tuple[float, np.ndarray]]] | None = None,
 ) -> TrajectoryRenderData:
     """Convert Trajectory into visualization-ready dict."""
-    sc_positions = [[float(s.position[0] / AU),
-                     float(s.position[1] / AU),
-                     float(s.position[2] / AU)]
-                    for s in trajectory.states]
+    sc_positions = [
+        [float(s.position[0] / AU), float(s.position[1] / AU), float(s.position[2] / AU)]
+        for s in trajectory.states
+    ]
     sc_epochs = [s.epoch for s in trajectory.states]
 
     body_data: dict[str, Body3DData] = {}
@@ -68,8 +72,10 @@ def build_render_data(
         for name, state_list in body_states.items():
             body_data[name] = Body3DData(
                 name=name,
-                positions_au=[[float(pos[0] / AU), float(pos[1] / AU), float(pos[2] / AU)]
-                              for _, pos in state_list],
+                positions_au=[
+                    [float(pos[0] / AU), float(pos[1] / AU), float(pos[2] / AU)]
+                    for _, pos in state_list
+                ],
                 epochs=[e for e, _ in state_list],
             )
 

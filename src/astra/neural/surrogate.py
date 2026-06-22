@@ -1,6 +1,7 @@
 """Abstract base and registry for all ASTRA neural surrogate models.
 Physics validation is MANDATORY — this is enforced at the interface level.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -16,24 +17,23 @@ class SurrogateOutput:
     uncertainty: float
     requires_physics_validation: bool = True  # ALWAYS True in ASTRA
 
+
 @dataclass
 class SurrogatePrediction(SurrogateOutput):
-    mean: np.ndarray = field(
-        default_factory=lambda: np.array([], dtype=np.float32)
-    )  # shape (6,)
+    mean: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float32))  # shape (6,)
     variance: np.ndarray = field(
         default_factory=lambda: np.array([], dtype=np.float32)
     )  # shape (6,)
-    std: np.ndarray = field(
-        default_factory=lambda: np.array([], dtype=np.float32)
-    )  # shape (6,)
+    std: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float32))  # shape (6,)
     delta_v: float = 0.0
+
 
 @dataclass
 class SurrogateMetrics:
     """Performance metrics from evaluation on a labeled test set."""
-    auc_roc: float         # for classifiers
-    accuracy: float        # for classifiers
+
+    auc_roc: float  # for classifiers
+    accuracy: float  # for classifiers
     precision: float
     recall: float
     n_test_samples: int
@@ -57,6 +57,7 @@ class SurrogateMetrics:
             d["fn"] = self.fn
         return d
 
+
 class NeuralSurrogate(ABC):
     """Abstract base for all ASTRA neural surrogates.
     The requires_physics_validation property MUST always return True.
@@ -72,8 +73,7 @@ class NeuralSurrogate(ABC):
         ...
 
     @abstractmethod
-    def is_trained(self) -> bool:
-        ...
+    def is_trained(self) -> bool: ...
 
     @abstractmethod
     def evaluate(self, x_test: np.ndarray, y_test: np.ndarray) -> SurrogateMetrics:

@@ -18,8 +18,9 @@ class ConstraintStatus:
     limit: float
     actual: float
     satisfied: bool
-    margin_pct: float   # how far below limit (positive = headroom)
-    binding: bool       # within 5% of limit = binding
+    margin_pct: float  # how far below limit (positive = headroom)
+    binding: bool  # within 5% of limit = binding
+
 
 @dataclass
 class ConstraintAnalysis:
@@ -42,6 +43,7 @@ class ConstraintAnalysis:
                 for s in self.statuses
             ],
         }
+
 
 def analyze_constraints(
     trajectory: Trajectory,
@@ -117,7 +119,8 @@ def analyze_constraints(
 
         elif c.type == ConstraintType.MIN_PERIAPSIS:
             res_periapsis_list = [
-                r for r in report.physical_results
+                r
+                for r in report.physical_results
                 if r.constraint_type == "min_periapsis" and r.body == c.body
             ]
             if res_periapsis_list:
@@ -143,18 +146,19 @@ def analyze_constraints(
         else:
             continue
 
-        statuses.append(ConstraintStatus(
-            name=c.type.value,
-            type=c.type,
-            limit=limit,
-            actual=actual,
-            satisfied=satisfied,
-            margin_pct=margin_pct,
-            binding=binding,
-        ))
+        statuses.append(
+            ConstraintStatus(
+                name=c.type.value,
+                type=c.type,
+                limit=limit,
+                actual=actual,
+                satisfied=satisfied,
+                margin_pct=margin_pct,
+                binding=binding,
+            )
+        )
 
     return ConstraintAnalysis(
         statuses=statuses,
         all_satisfied=all(s.satisfied for s in statuses),
     )
-

@@ -1,4 +1,5 @@
 """Atmospheric drag force model."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -43,6 +44,7 @@ class AtmosphericDrag(ForceModel):
             raise ValueError(f"Atmospheric drag parameters not available for body: {body}")
 
         from astra.state.orbital_state import PHYSICAL_RADIUS, CelestialBody
+
         try:
             self.body_enum = CelestialBody[body_upper]
         except KeyError:

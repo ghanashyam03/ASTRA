@@ -2,6 +2,7 @@
 All functions operate on (N, M) numpy arrays of objective values.
 Minimization is assumed for all objectives.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ def is_dominated(point: np.ndarray, population: np.ndarray) -> bool:
     strictly_better = np.any(population < point, axis=1)
     return bool(np.any(dominated_all & strictly_better))
 
+
 def compute_pareto_front(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Extract non-dominated points from an (N, M) objective array.
     Returns (pareto_points, pareto_indices) where pareto_indices are
@@ -32,14 +34,12 @@ def compute_pareto_front(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     for i in range(n):
         if not is_pareto[i]:
             continue
-        dominated_by_i = (
-            np.all(points[i] <= points, axis=1)
-            & np.any(points[i] < points, axis=1)
-        )
+        dominated_by_i = np.all(points[i] <= points, axis=1) & np.any(points[i] < points, axis=1)
         dominated_by_i[i] = False
         is_pareto[dominated_by_i] = False
     indices = np.where(is_pareto)[0]
     return points[indices], indices
+
 
 def hypervolume_indicator_2d(
     pareto_points: np.ndarray,
@@ -49,10 +49,10 @@ def hypervolume_indicator_2d(
     Measures the area of objective space dominated by the Pareto front
     but not by the reference point. Larger = better quality front.
     reference_point must strictly dominate all Pareto points.
-    
+
     Algorithm: sweep line from left to right after sorting by f1 ascending.
     Time O(N log N).
-    
+
     Example: points=[[1,4],[4,1]], ref=[5,5] → HVI = 7.0
     Verification:
       Sorted by f1: [1,4], [4,1]
@@ -73,6 +73,7 @@ def hypervolume_indicator_2d(
         prev_f2 = min(prev_f2, float(pt[1]))
     return hv
 
+
 def pareto_spread(pareto_points: np.ndarray) -> float:
     """Mean pairwise Euclidean distance between normalized Pareto points.
     Measures diversity of the Pareto front. Higher = more spread = better.
@@ -92,6 +93,7 @@ def pareto_spread(pareto_points: np.ndarray) -> float:
             count += 1
     return total / count if count > 0 else 0.0
 
+
 def pareto_from_trajectories(
     trajectories: list[Trajectory],
 ) -> tuple[list[Trajectory], np.ndarray]:
@@ -100,12 +102,10 @@ def pareto_from_trajectories(
     Returns (pareto_trajectories, pareto_indices)."""
     if not trajectories:
         return [], np.array([], dtype=int)
-    points = np.array(
-        [[t.delta_v_total, t.duration_days] for t in trajectories],
-        dtype=float
-    )
+    points = np.array([[t.delta_v_total, t.duration_days] for t in trajectories], dtype=float)
     _, idx = compute_pareto_front(points)
     return [trajectories[i] for i in idx], idx
+
 
 @dataclass
 class ParetoQualityMetrics:
@@ -128,6 +128,7 @@ class ParetoQualityMetrics:
             "reference_point": list(self.reference_point),
         }
 
+
 def compute_pareto_quality(
     trajectories: list[Trajectory],
     reference_multiplier: float = 1.1,
@@ -139,8 +140,9 @@ def compute_pareto_quality(
     dvs = np.array([t.delta_v_total for t in trajectories])
     days = np.array([t.duration_days for t in trajectories])
     pts = np.column_stack([dvs, days])
-    ref = np.array([float(dvs.max()) * reference_multiplier,
-                    float(days.max()) * reference_multiplier])
+    ref = np.array(
+        [float(dvs.max()) * reference_multiplier, float(days.max()) * reference_multiplier]
+    )
     hvi = hypervolume_indicator_2d(pts, ref)
     sp = pareto_spread(pts)
     tof_range = (float(days.min()), float(days.max()))

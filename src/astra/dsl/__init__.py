@@ -1,6 +1,7 @@
 """ASTRA Mission Definition Language (DSL) module.
 Provides schemas, parsers, and compilers for specifying space missions.
 """
+
 from __future__ import annotations
 
 from astra.dsl.compiler import (

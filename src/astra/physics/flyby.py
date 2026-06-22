@@ -2,6 +2,7 @@
 All computations use the patched-conics model within the planet's SOI.
 Reference: Vallado, D.A. — Fundamentals of Astrodynamics and Applications, Ch. 6.
 """
+
 from __future__ import annotations
 
 import math
@@ -15,27 +16,29 @@ from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody
 @dataclass
 class FlybyResult:
     body: str
-    periapsis_km: float              # closest approach distance from center
-    periapsis_altitude_km: float     # closest approach altitude
-    v_inf_in_km_s: float             # incoming hyperbolic excess speed
-    v_inf_out_km_s: float            # outgoing hyperbolic excess speed (= in for unpowered)
-    turn_angle_deg: float            # deflection angle of velocity vector
-    powered_dv_km_s: float           # propulsion burn at periapsis (0 for unpowered)
-    dv_helio_km_s: float             # effective heliocentric Δv gained
-    is_valid: bool                   # periapsis above atmosphere
-    min_safe_periapsis_km: float     # physical radius + atmosphere clearance
+    periapsis_km: float  # closest approach distance from center
+    periapsis_altitude_km: float  # closest approach altitude
+    v_inf_in_km_s: float  # incoming hyperbolic excess speed
+    v_inf_out_km_s: float  # outgoing hyperbolic excess speed (= in for unpowered)
+    turn_angle_deg: float  # deflection angle of velocity vector
+    powered_dv_km_s: float  # propulsion burn at periapsis (0 for unpowered)
+    dv_helio_km_s: float  # effective heliocentric Δv gained
+    is_valid: bool  # periapsis above atmosphere
+    min_safe_periapsis_km: float  # physical radius + atmosphere clearance
+
 
 # Safe flyby altitudes (above physical surface) [km]
 # Based on atmospheric extent or minimum safe altitude for navigation
 SAFE_FLYBY_ALTITUDE_KM: dict[str, float] = {
     "MERCURY": 200.0,
-    "VENUS": 300.0,    # Venus has a dense atmosphere (~70km) + margin
+    "VENUS": 300.0,  # Venus has a dense atmosphere (~70km) + margin
     "EARTH": 500.0,
     "MOON": 50.0,
     "MARS": 200.0,
     "JUPITER": 500.0,
     "SATURN": 500.0,
 }
+
 
 def compute_flyby_turn_angle(
     v_inf_km_s: float,
@@ -56,13 +59,14 @@ def compute_flyby_turn_angle(
     half_angle = math.asin(1.0 / e)
     return 2.0 * half_angle
 
+
 def compute_flyby(
-    v_inf_in: np.ndarray,           # incoming hyperbolic excess velocity [km/s]
-    periapsis_km: float,             # closest approach radius from body center [km]
-    body: str,                       # planet name ("VENUS", "MARS", etc.)
-    powered_dv_km_s: float = 0.0,   # propulsion burn at periapsis [km/s]
+    v_inf_in: np.ndarray,  # incoming hyperbolic excess velocity [km/s]
+    periapsis_km: float,  # closest approach radius from body center [km]
+    body: str,  # planet name ("VENUS", "MARS", etc.)
+    powered_dv_km_s: float = 0.0,  # propulsion burn at periapsis [km/s]
     flyby_plane_normal: np.ndarray | None = None,  # orbit plane normal
-    bplane_theta_rad: float | None = None,   # NEW
+    bplane_theta_rad: float | None = None,  # NEW
 ) -> FlybyResult:
     """Compute flyby result: incoming → outgoing hyperbolic excess velocity.
 
@@ -104,7 +108,7 @@ def compute_flyby(
         v_peri_in = math.sqrt(v_inf_in_mag**2 + 2.0 * mu / periapsis_km)
         v_peri_out = v_peri_in + powered_dv_km_s
         v_inf_out_mag = math.sqrt(max(0.0, v_peri_out**2 - 2.0 * mu / periapsis_km))
-        
+
         # Turn angle for powered flyby (asymmetric incoming & outgoing asymptotes)
         e_in = 1.0 + periapsis_km * v_inf_in_mag**2 / mu
         e_out = 1.0 + periapsis_km * v_inf_out_mag**2 / mu
@@ -138,9 +142,11 @@ def compute_flyby(
 
     # Rodrigues' rotation formula: rotate v_inf_in_hat by turn_angle about rot_axis
     c, s = math.cos(turn_angle_rad), math.sin(turn_angle_rad)
-    v_inf_out_hat = (v_inf_in_hat * c
-                     + np.cross(rot_axis, v_inf_in_hat) * s
-                     + rot_axis * np.dot(rot_axis, v_inf_in_hat) * (1.0 - c))
+    v_inf_out_hat = (
+        v_inf_in_hat * c
+        + np.cross(rot_axis, v_inf_in_hat) * s
+        + rot_axis * np.dot(rot_axis, v_inf_in_hat) * (1.0 - c)
+    )
     v_inf_out = v_inf_out_hat * v_inf_out_mag
 
     # Effective heliocentric Δv = |v_inf_out - v_inf_in| (in planet frame = heliocentric gain)
@@ -163,7 +169,7 @@ def compute_flyby(
 def build_bplane_frame(
     v_inf_in: np.ndarray,
     reference_pole: np.ndarray = np.array([0.0, 0.0, 1.0]),  # ecliptic north, matches
-                                                               # ASTRA's ECLIPJ2000 frame
+    # ASTRA's ECLIPJ2000 frame
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Build the (S, T, R) B-plane basis for an incoming hyperbolic asymptote.
 
@@ -219,39 +225,37 @@ def orbit_normal_from_bvector(S: np.ndarray, B_hat: np.ndarray) -> np.ndarray:  
 
 def periapsis_from_impact_parameter(b_km: float, v_inf_km_s: float, mu: float) -> float:
     """Closed-form: r_p = sqrt(a_h² + b²) - a_h, where a_h = mu / v_inf²."""
-    a_h = mu / (v_inf_km_s ** 2)
-    return float(math.sqrt(a_h ** 2 + b_km ** 2) - a_h)
+    a_h = mu / (v_inf_km_s**2)
+    return float(math.sqrt(a_h**2 + b_km**2) - a_h)
 
 
 def impact_parameter_from_periapsis(r_p_km: float, v_inf_km_s: float, mu: float) -> float:
     """Closed-form: b = sqrt(r_p² + 2·r_p·a_h)."""
-    a_h = mu / (v_inf_km_s ** 2)
-    return float(math.sqrt(r_p_km ** 2 + 2.0 * r_p_km * a_h))
+    a_h = mu / (v_inf_km_s**2)
+    return float(math.sqrt(r_p_km**2 + 2.0 * r_p_km * a_h))
 
 
-def periapsis_from_turn_angle(
-    target_turn_rad: float, v_inf_km_s: float, mu: float
-) -> float:
+def periapsis_from_turn_angle(target_turn_rad: float, v_inf_km_s: float, mu: float) -> float:
     """Closed-form: e = 1/sin(δ/2), r_p = a_h·(e-1). No iteration.
     Caller MUST check feasibility (max_achievable_turn_angle) BEFORE calling this —
     this function does not validate; it computes the periapsis that WOULD be
     needed even if that periapsis violates the safe-altitude minimum. The gate
     function below performs the actual feasibility check."""
-    a_h = mu / (v_inf_km_s ** 2)
+    a_h = mu / (v_inf_km_s**2)
     half_angle = target_turn_rad / 2.0
     if half_angle <= 0.0 or half_angle >= math.pi / 2.0:
-        raise ValueError(f"Target turn angle {math.degrees(target_turn_rad):.2f}° "
-                         f"out of valid (0°, 180°) range")
+        raise ValueError(
+            f"Target turn angle {math.degrees(target_turn_rad):.2f}° "
+            f"out of valid (0°, 180°) range"
+        )
     e = 1.0 / math.sin(half_angle)
     return float(a_h * (e - 1.0))
 
 
-def max_achievable_turn_angle(
-    v_inf_km_s: float, r_min_km: float, mu: float
-) -> float:
+def max_achievable_turn_angle(v_inf_km_s: float, r_min_km: float, mu: float) -> float:
     """Maximum turn angle [radians] achievable by unpowered gravity assist alone,
     i.e. at the minimum safe periapsis r_min_km."""
-    a_h = mu / (v_inf_km_s ** 2)
+    a_h = mu / (v_inf_km_s**2)
     e_min = 1.0 + r_min_km / a_h
     return float(2.0 * math.asin(1.0 / e_min))
 
@@ -263,20 +267,20 @@ def max_achievable_turn_angle_with_unlimited_burn(
     at periapsis. δ_ceiling = asin(1/e_in) + π/2. Beyond this, NO finite correction
     at this body can achieve the required turn — this is a true rejection boundary,
     not a budget-dependent one."""
-    a_h = mu / (v_inf_in_km_s ** 2)
+    a_h = mu / (v_inf_in_km_s**2)
     e_in = 1.0 + r_min_km / a_h
     return float(math.asin(1.0 / e_in) + math.pi / 2.0)
 
 
 @dataclass
 class FlybyFeasibility:
-    is_achievable_unpowered: bool      # pure gravity assist, no burn needed
-    is_achievable_with_bounded_burn: bool   # achievable with SOME finite powered_dv
-    is_achievable_at_all: bool          # False ⟹ hard rejection, no budget can fix it
+    is_achievable_unpowered: bool  # pure gravity assist, no burn needed
+    is_achievable_with_bounded_burn: bool  # achievable with SOME finite powered_dv
+    is_achievable_at_all: bool  # False ⟹ hard rejection, no budget can fix it
     required_turn_rad: float
     max_unpowered_turn_rad: float
     max_turn_with_unlimited_burn_rad: float
-    solved_periapsis_km: float | None   # None if infeasible even unpowered
+    solved_periapsis_km: float | None  # None if infeasible even unpowered
     min_safe_periapsis_km: float
     rejection_reason: str | None
 
@@ -293,15 +297,14 @@ def check_flyby_feasibility(
     or hard-rejected with an explicit reason string.
     """
     from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody
+
     body_upper = body.upper()
     mu = GM[body_upper]
     R_body = PHYSICAL_RADIUS[CelestialBody[body_upper]]
     r_min = R_body + SAFE_FLYBY_ALTITUDE_KM.get(body_upper, 300.0)
 
     max_unpowered = max_achievable_turn_angle(v_inf_in_mag_km_s, r_min, mu)
-    max_with_burn = max_achievable_turn_angle_with_unlimited_burn(
-        v_inf_in_mag_km_s, r_min, mu
-    )
+    max_with_burn = max_achievable_turn_angle_with_unlimited_burn(v_inf_in_mag_km_s, r_min, mu)
 
     if required_turn_rad <= max_unpowered:
         r_p = periapsis_from_turn_angle(required_turn_rad, v_inf_in_mag_km_s, mu)

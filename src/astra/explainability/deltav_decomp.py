@@ -13,6 +13,7 @@ class DeltaVComponent:
     fraction_of_total: float
     epoch_j2000: float
 
+
 @dataclass
 class DeltaVDecomposition:
     components: list[DeltaVComponent]
@@ -33,6 +34,7 @@ class DeltaVDecomposition:
                 for c in self.components
             ],
         }
+
 
 def decompose_delta_v(trajectory: Trajectory) -> DeltaVDecomposition:
     """Decompose trajectory delta-v budget by maneuver."""

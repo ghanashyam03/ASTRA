@@ -1,4 +1,5 @@
 """Compile MissionDSL into strongly-typed domain objects."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,15 +17,17 @@ if TYPE_CHECKING:
 @dataclass
 class CompiledConstraint:
     type: ConstraintType
-    limit: float        # the numeric threshold
+    limit: float  # the numeric threshold
     hard: bool
     body: str | None = None
+
 
 @dataclass
 class CompiledObjective:
     metric: str
-    direction: str      # "minimize" or "maximize"
+    direction: str  # "minimize" or "maximize"
     weight: float
+
 
 @dataclass
 class CompiledMission:
@@ -32,7 +35,7 @@ class CompiledMission:
     spacecraft: Spacecraft
     origin_body: CelestialBody
     destination_body: CelestialBody
-    departure_epoch_start: float   # J2000 seconds
+    departure_epoch_start: float  # J2000 seconds
     departure_epoch_end: float
     tof_min_seconds: float
     tof_max_seconds: float
@@ -45,6 +48,7 @@ class CompiledMission:
     capture_altitude_km: float = 300.0
     capture_apoapsis_km: float | None = None
 
+
 def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -> CompiledMission:
     """Compile MissionDSL → CompiledMission domain object.
     ephemeris: optional EphemerisEngine for epoch conversion.
@@ -56,6 +60,7 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
     else:
         # Fallback: compute J2000 seconds from datetime
         from datetime import datetime
+
         J2000 = datetime(2000, 1, 1, 12, 0, 0, tzinfo=UTC)
         dep_start = (dsl.launch_window.start.replace(tzinfo=UTC) - J2000).total_seconds()
         dep_end = (dsl.launch_window.end.replace(tzinfo=UTC) - J2000).total_seconds()
@@ -81,24 +86,29 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
     constraints = []
     for c in dsl.constraints:
         if c.type == ConstraintType.MAX_DELTA_V:
-            constraints.append(CompiledConstraint(
-                type=c.type, limit=c.value_km_s or 99.0, hard=c.hard))
+            constraints.append(
+                CompiledConstraint(type=c.type, limit=c.value_km_s or 99.0, hard=c.hard)
+            )
         elif c.type == ConstraintType.MAX_DURATION:
-            constraints.append(CompiledConstraint(
-                type=c.type, limit=(c.value_days or 999) * 86400.0, hard=c.hard))
+            constraints.append(
+                CompiledConstraint(type=c.type, limit=(c.value_days or 999) * 86400.0, hard=c.hard)
+            )
         elif c.type == ConstraintType.MIN_PERIAPSIS:
-            constraints.append(CompiledConstraint(
-                type=c.type, limit=c.value_km or 0.0, hard=c.hard, body=c.body))
+            constraints.append(
+                CompiledConstraint(type=c.type, limit=c.value_km or 0.0, hard=c.hard, body=c.body)
+            )
 
     objectives = [
         CompiledObjective(
             metric=o.metric.value,
             direction=o.direction.value,
             weight=o.weight,
-        ) for o in dsl.objectives
+        )
+        for o in dsl.objectives
     ]
 
     from astra.physics.soi import get_default_parking_altitude
+
     h_park = get_default_parking_altitude(dsl.trajectory.origin.body)
     if dsl.trajectory.origin.orbit is not None:
         if dsl.trajectory.origin.orbit.altitude_km is not None:
@@ -114,7 +124,7 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
             h_cap = dsl.trajectory.destination.orbit.altitude_km
         elif dsl.trajectory.destination.orbit.periapsis_km is not None:
             h_cap = dsl.trajectory.destination.orbit.periapsis_km
-        
+
         if orbit.type == "elliptical" and orbit.apoapsis_km is not None:
             capture_apoapsis_km = orbit.apoapsis_km
         else:

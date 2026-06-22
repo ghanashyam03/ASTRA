@@ -10,12 +10,12 @@ def main() -> None:
     print("======================================================================")
     print("MCTS Gravity Assist Phase Planner Validation")
     print("======================================================================")
-    
+
     # Check SPICE kernel
     if not (Path("data/spice_kernels") / "de440.bsp").exists():
         print("Error: SPICE kernel not found.")
         return
-        
+
     kernel = PhysicsKernel().load()
     dsl = parse_mission_file("data/benchmarks/earth_mars_2031.yaml")
     mission = compile_mission(dsl, kernel.ephemeris)
@@ -32,16 +32,16 @@ def main() -> None:
     )
 
     paths = planner.run()
-    print(f"\nMCTS Search completed. Found {len(paths)} valid flyby paths reaching Mars.")
-    
-    if not paths:
+    print(f"\nMCTS Search completed. Found {len(paths.all_paths)} valid flyby paths reaching Mars.")
+
+    if not paths.all_paths:
         print("No valid paths found reaching Mars under the specified delta-V budget.")
         return
 
     # Filter for paths that contain a Venus flyby
-    venus_paths = [p for p in paths if any(s.body == "VENUS" for s in p)]
+    venus_paths = [p for p in paths.all_paths if any(s.body == "VENUS" for s in p)]
     print(f"\nOf those, {len(venus_paths)} paths contain a VENUS flyby.")
-    
+
     # Print the top 5 paths containing Venus flyby
     for idx, path in enumerate(venus_paths[:5]):
         print(f"\nVenus Assist Path {idx + 1}:")

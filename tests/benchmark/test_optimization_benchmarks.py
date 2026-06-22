@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from astra.dsl.compiler import CompiledMission, compile_mission
 from astra.dsl.parser import parse_mission_string
 from astra.neural.pinn import LambertPINNEnsemble
@@ -166,12 +165,8 @@ def generate_training_data(
     np.ndarray,
 ]:
     rng = np.random.default_rng(42)
-    dep_epochs = rng.uniform(
-        mission.departure_epoch_start, mission.departure_epoch_end, n_samples
-    )
-    tof_seconds = rng.uniform(
-        mission.tof_min_seconds, mission.tof_max_seconds, n_samples
-    )
+    dep_epochs = rng.uniform(mission.departure_epoch_start, mission.departure_epoch_end, n_samples)
+    tof_seconds = rng.uniform(mission.tof_min_seconds, mission.tof_max_seconds, n_samples)
 
     X = []
     y_dv = []
@@ -263,6 +258,7 @@ def test_optimization_benchmarks() -> None:
     }
 
     from typing import Any
+
     results: dict[str, dict[str, Any]] = {}
 
     for name, spec in scenarios.items():
@@ -306,9 +302,7 @@ def test_optimization_benchmarks() -> None:
         )
         dt_std = time.perf_counter() - t0
 
-        dv_std = (
-            res_std.best_trajectory.delta_v_total if res_std.best_trajectory else float("inf")
-        )
+        dv_std = res_std.best_trajectory.delta_v_total if res_std.best_trajectory else float("inf")
         val_success_std = 0.0
         if res_std.best_trajectory:
             val_res = kernel.validate_trajectory(res_std.best_trajectory)
