@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from astra.dsl.schema import ConstraintType, MissionDSL
 from astra.state.orbital_state import CelestialBody
@@ -47,6 +47,9 @@ class CompiledMission:
     parking_altitude_km: float = 200.0
     capture_altitude_km: float = 300.0
     capture_apoapsis_km: float | None = None
+    flyby_sequence: list[dict[str, Any]] = field(default_factory=list)
+    dsm_budget_km_s: float = 0.0
+    max_revs_per_leg: int = 0
 
 
 def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -> CompiledMission:
@@ -78,9 +81,12 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
         propulsion=prop,
     )
 
+    # Trajectory schema choice (precedence to multi_body_trajectory)
+    traj = dsl.multi_body_trajectory if dsl.multi_body_trajectory is not None else dsl.trajectory
+
     # Bodies
-    origin = CelestialBody[dsl.trajectory.origin.body.upper()]
-    destination = CelestialBody[dsl.trajectory.destination.body.upper()]
+    origin = CelestialBody[traj.origin.body.upper()]
+    destination = CelestialBody[traj.destination.body.upper()]
 
     # Constraints
     constraints = []
@@ -109,21 +115,21 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
 
     from astra.physics.soi import get_default_parking_altitude
 
-    h_park = get_default_parking_altitude(dsl.trajectory.origin.body)
-    if dsl.trajectory.origin.orbit is not None:
-        if dsl.trajectory.origin.orbit.altitude_km is not None:
-            h_park = dsl.trajectory.origin.orbit.altitude_km
-        elif dsl.trajectory.origin.orbit.periapsis_km is not None:
-            h_park = dsl.trajectory.origin.orbit.periapsis_km
+    h_park = get_default_parking_altitude(traj.origin.body)
+    if traj.origin.orbit is not None:
+        if traj.origin.orbit.altitude_km is not None:
+            h_park = traj.origin.orbit.altitude_km
+        elif traj.origin.orbit.periapsis_km is not None:
+            h_park = traj.origin.orbit.periapsis_km
 
-    h_cap = get_default_parking_altitude(dsl.trajectory.destination.body)
+    h_cap = get_default_parking_altitude(traj.destination.body)
     capture_apoapsis_km = None
-    if dsl.trajectory.destination.orbit is not None:
-        orbit = dsl.trajectory.destination.orbit
-        if dsl.trajectory.destination.orbit.altitude_km is not None:
-            h_cap = dsl.trajectory.destination.orbit.altitude_km
-        elif dsl.trajectory.destination.orbit.periapsis_km is not None:
-            h_cap = dsl.trajectory.destination.orbit.periapsis_km
+    if traj.destination.orbit is not None:
+        orbit = traj.destination.orbit
+        if traj.destination.orbit.altitude_km is not None:
+            h_cap = traj.destination.orbit.altitude_km
+        elif traj.destination.orbit.periapsis_km is not None:
+            h_cap = traj.destination.orbit.periapsis_km
 
         if orbit.type == "elliptical" and orbit.apoapsis_km is not None:
             capture_apoapsis_km = orbit.apoapsis_km
@@ -131,7 +137,7 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
             capture_apoapsis_km = None
 
     day = 86400.0
-    return CompiledMission(
+    compiled = CompiledMission(
         mission_id=dsl.mission_id,
         spacecraft=sc,
         origin_body=origin,
@@ -149,3 +155,20 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
         capture_altitude_km=h_cap,
         capture_apoapsis_km=capture_apoapsis_km,
     )
+
+    if dsl.multi_body_trajectory is not None:
+        mbt = dsl.multi_body_trajectory
+        compiled.flyby_sequence = [
+            {
+                "body": fb.body.upper(),
+                "min_alt_km": fb.min_periapsis_alt_km,
+                "max_alt_km": fb.max_periapsis_alt_km,
+                "powered_allowed": fb.powered_burn_allowed,
+                "max_powered_km_s": fb.max_powered_burn_km_s,
+            }
+            for fb in mbt.flyby_sequence
+        ]
+        compiled.dsm_budget_km_s = mbt.dsm_budget_km_s
+        compiled.max_revs_per_leg = mbt.max_revs_per_leg
+
+    return compiled
