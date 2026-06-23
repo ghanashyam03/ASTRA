@@ -1,6 +1,6 @@
 # ASTRA: Autonomous Space Trajectory Reasoning Architecture
 
-ASTRA is a premium, physics-constrained orbital trajectory optimization and mission analysis platform designed for advanced astrodynamics research.
+ASTRA is a physics-constrained orbital trajectory optimization and mission analysis platform designed for advanced astrodynamics research.
 
 ---
 
@@ -15,15 +15,16 @@ ASTRA is a premium, physics-constrained orbital trajectory optimization and miss
 *   **Modular Perturbation Forces**: Provides a pluggable force model system (`ForceModel`) enabling composable ODE construction (combining point-mass gravity, J2 perturbations, solar radiation pressure, and atmospheric drag).
 
 ### 2. ASTRA Mission DSL (`astra.dsl`)
-*   **Strict Pydantic v2 Schema**: High-level validation models verifying dry mass, fuel mass, Isp boundaries, time-of-flight spans, launch windows, constraints, and objective weights.
+*   **Strict Pydantic v2 Schema**: High-level validation models verifying dry mass, fuel mass, Isp boundaries, time-of-flight spans, launch windows, constraints, objective weights, and multi-body flyby sequences with explicit DSM budgets.
 *   **YAML/JSON Parsers**: Robust parser utility matching standard YAML/JSON specs directly to schemas.
-*   **Mission Compiler**: Compiles high-level user specifications into domain-level strongly typed constructs (`Spacecraft`, `PropulsionSystem`, `CelestialBody`) and converts UTC epochs to J2000 barycentric dynamical time (TDB) seconds automatically using naive date string ISO-format parameters.
+*   **Mission Compiler**: Compiles high-level user specifications into domain-level strongly typed constructs (`Spacecraft`, `PropulsionSystem`, `CelestialBody`), converts UTC epochs to J2000 barycentric dynamical time (TDB) seconds, and extracts flyby sequences and DSM budgets, taking precedence over simple direct trajectories.
 
 ### 3. Trajectory Optimization Engine (`astra.optimization`)
 *   **Search Space boundaries (`SearchSpace`)**: Tracks and structures parameters for J2000 departure epochs and time-of-flight seconds.
 *   **Porkchop Grid Computation (`compute_porkchop`)**: Calculates precise grid points of departure dates and time of flight, querying SPICE targets and performing Lambert solutions to map orbital feasibility.
 *   **Multi-Objective TPE Optimizer (`optimize_mission_bayesian`)**: Employs Optuna TPE and NSGA-II multi-objective samplers to evaluate optimal trade-offs between flight duration and total launch/capture $\Delta v$, returning best feasible solutions and complete Pareto-front structures.
 *   **Maneuvers & Trajectories (`astra.state.trajectory`)**: Houses complete representations of impulsive orbital maneuvers (`Maneuver`) and multi-impulse orbital transfers (`Trajectory`).
+*   **Multi-Leg Chain Resolver (`resolve_flyby_chain`)**: Solves a full multi-leg gravity assist sequence with explicit geometry and correction budget checking (unpowered vs powered/DSM) at every flyby node.
 
 ### 4. Explainability Engine (`astra.explainability`)
 *   **Delta-V Budget Decompositions (`decompose_delta_v`)**: Breaks down launch and arrival maneuver magnitudes, percentages, and epoch points, applying a standard 3% navigation margin.
@@ -528,7 +529,7 @@ Below is a comparative breakdown of the optimal 280-day Earth-Mars transfer from
 
 Gravity assists (flybys) enable interplanetary trajectories to gain or lose heliocentric energy without expending propellant by exploiting the gravitational field of a planetary body.
 
-### Trajectory Formifications & Classifications
+### Trajectory Formulations & Classifications
 
 *   **Direct Transfers**: A simple two-impulse conic transfer between the origin planet and the destination planet (e.g. Earth to Mars direct).
 *   **Flyby Transfers**: A multi-body transfer sequence that utilizes one or more intermediate planetary flybys (e.g. Earth -> Venus -> Mars) to shape the trajectory.
@@ -547,6 +548,11 @@ $$e = 1 + \frac{r_p v_{\infty}^2}{\mu}$$
 For asymmetric powered flybys, the total turn angle is the sum of the incoming and outgoing hyperbolic asymptote angles:
 
 $$\delta = \arcsin(1/e_{\text{in}}) + \arcsin(1/e_{\text{out}})$$
+
+### Feasibility Checking & Powered Correction Resolver
+In multi-leg sequences where incoming and outgoing excess speed magnitudes are fixed by independent Lambert transfers, the turn angle and burn requirements are solved via a deterministic search over periapsis $r_p$ within safe altitude bounds:
+1. **Unpowered Feasibility**: Verified via `check_flyby_feasibility` to see if gravity alone satisfies the required turn with numerical speed conservation.
+2. **Powered Correction Search**: If required deflection exceeds the unpowered ceiling, a bounded grid search finds the $r_p$ that satisfies $\delta$ while minimizing powered $\Delta v$. If no valid $r_p$ achieves the turn, or the required $\Delta v$ exceeds the local and DSM budgets, the leg is hard-rejected.
 
 ---
 
@@ -577,7 +583,8 @@ $$\text{Reward} = 1.0 - \frac{\Delta v_{\text{total}}}{\Delta v_{\text{budget}}}
 *   **Elliptical Capture & Circularization**: Multi-impulse capture orbit targeting, supporting elliptical periapsis insertion and subsequent apoapsis circularization burns.
 *   **Powered and Unpowered Hyperbolic Flyby Models**: Vector rotations about orbital plane normals, periapsis speed calculations, and minimum safe altitude constraints.
 *   **Safe Flyby Altitudes**: Physical radius boundaries combined with atmospheric clearance margins for `MERCURY`, `VENUS`, `EARTH`, `MOON`, `MARS`, `JUPITER`, and `SATURN`.
-*   **MCTS Sequence Planner**: Tree traversal, UCT selection, random simulation rollouts, and complete path collection.
+*   **MCTS Sequence Planner**: Traversal with uncertainty penalization, UCT selection, and dynamic path validation featuring explicit flyby feasibility checking and DSM budget tracking.
+*   **Multi-Leg Chain Resolver**: `resolve_flyby_chain` algorithm for deterministic geometric and budget verification of gravity assist paths.
 
 ### Remaining Scientific Approximations
 *   **Instantaneous Flyby (Patched-Conics)**: Flybys are treated as occurring instantaneously at the planet's heliocentric position. The heliocentric delta-v gained `dv_helio_km_s` is a patched-conics approximation ($||v_{\infty, out} - v_{\infty, in}||$) rather than a true numerical heliocentric integration of the trajectory under 3-body or heliocentric gravity.
