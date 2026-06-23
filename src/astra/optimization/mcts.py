@@ -29,6 +29,7 @@ class PhaseState:
     dv_spent: float  # cumulative delta-v spent [km/s]
     predicted_dv: float = 0.0
     uncertainty: float = 0.0
+    dsm_spent: float = 0.0
 
 
 @dataclass
@@ -321,6 +322,7 @@ class MCTSPlanner:
             return None
 
         # Compute delta-v cost
+        new_dsm_spent = state.dsm_spent
         if state.body == self.origin_body and state.dv_spent == 0.0:
             from astra.physics.maneuvers import departure_delta_v
 
@@ -331,31 +333,38 @@ class MCTSPlanner:
             v_inf_in_vec = state.v_helio - v1_body
             v_inf_out_vec = v_dep - v1_body
 
-            v_inf_in_mag = float(np.linalg.norm(v_inf_in_vec))
-            v_inf_out_mag = float(np.linalg.norm(v_inf_out_vec))
-            if v_inf_in_mag <= 1e-6 or v_inf_out_mag <= 1e-6:
-                return None
+            from astra.optimization.chain_solver import resolve_single_flyby_segment
 
-            cos_theta = float(np.dot(v_inf_in_vec, v_inf_out_vec) / (v_inf_in_mag * v_inf_out_mag))
-            cos_theta = max(-1.0, min(1.0, cos_theta))
-            target_turn = math.acos(cos_theta)
+            spec = {
+                "min_alt_km": 300.0,
+                "max_alt_km": 50000.0,
+                "powered_allowed": False,
+                "max_powered_km_s": 0.0,
+            }
+            if hasattr(self.mission, "flyby_sequence"):
+                for s in self.mission.flyby_sequence:
+                    if s["body"].upper() == state.body.upper():
+                        spec = s
+                        break
 
-            r_p = self._solve_periapsis_for_turn_angle(
-                v_inf_in_mag, v_inf_out_mag, target_turn, state.body
-            )
+            mission_dsm = getattr(self.mission, "dsm_budget_km_s", 0.0)
+            dsm_budget_available = mission_dsm - state.dsm_spent
 
-            from astra.physics.flyby import compute_flyby
-
-            flyby_result = compute_flyby(
-                v_inf_in=v_inf_in_vec,
-                periapsis_km=r_p,
+            res, _ = resolve_single_flyby_segment(
                 body=state.body,
-                powered_dv_km_s=0.0,
+                v_inf_in=v_inf_in_vec,
+                v_inf_out_required=v_inf_out_vec,
+                min_alt_km=spec["min_alt_km"],
+                max_alt_km=spec["max_alt_km"],
+                powered_allowed=bool(spec["powered_allowed"]),
+                max_powered_km_s=spec["max_powered_km_s"],
+                dsm_budget_available=dsm_budget_available,
             )
-
-            dv_cost = flyby_result.dv_helio_km_s
-            if not flyby_result.is_valid:
+            if res is None:
                 return None
+
+            dv_cost = res["dv_km_s"]
+            new_dsm_spent = state.dsm_spent + res["from_dsm"]
 
         new_dv_spent = state.dv_spent + dv_cost
 
@@ -407,6 +416,7 @@ class MCTSPlanner:
             dv_spent=new_dv_spent,
             predicted_dv=predicted_dv,
             uncertainty=uncertainty,
+            dsm_spent=new_dsm_spent,
         )
 
     def _solve_periapsis_for_turn_angle(
