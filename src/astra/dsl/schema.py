@@ -146,6 +146,41 @@ class TrajectorySchema(BaseModel):
     destination: BodyOrbitSchema
 
 
+class FlybyBodySchema(BaseModel):
+    """A single flyby body in a declared multi-body sequence."""
+
+    body: str
+    min_periapsis_alt_km: float = 300.0
+    max_periapsis_alt_km: float = 50000.0
+    powered_burn_allowed: bool = False
+    max_powered_burn_km_s: float = 0.0  # only used if powered_burn_allowed=True
+
+    @model_validator(mode="after")
+    def validate_burn_budget(self) -> FlybyBodySchema:
+        if self.powered_burn_allowed and self.max_powered_burn_km_s <= 0.0:
+            raise ValueError("powered_burn_allowed=True requires max_powered_burn_km_s > 0")
+        if self.max_periapsis_alt_km <= self.min_periapsis_alt_km:
+            raise ValueError("max_periapsis_alt_km must exceed min_periapsis_alt_km")
+        return self
+
+
+class MultiBodyTrajectorySchema(BaseModel):
+    """Multi-body trajectory with an explicit, bounded deep-space-maneuver budget.
+
+    dsm_budget_km_s has NO permissive default — it is 0.0 unless the mission
+    designer explicitly declares a budget. This is a deliberate safety choice:
+    the old bug allowed unlimited implicit correction Δv to silently patch
+    infeasible flyby geometry. Requiring explicit, bounded declaration here
+    means the chain solver (Prompt 31) can never invent unbounded correction.
+    """
+
+    origin: BodyOrbitSchema
+    destination: BodyOrbitSchema
+    flyby_sequence: list[FlybyBodySchema] = []
+    dsm_budget_km_s: float = 0.0
+    max_revs_per_leg: int = 0  # multi-rev search per leg, 0 = single-rev only
+
+
 class MissionDSL(BaseModel):
     """Root model for ASTRA Mission Definition Language."""
 
@@ -153,6 +188,7 @@ class MissionDSL(BaseModel):
     mission_id: str
     spacecraft: SpacecraftSchema
     trajectory: TrajectorySchema
+    multi_body_trajectory: MultiBodyTrajectorySchema | None = None
     launch_window: LaunchWindowSchema
     constraints: list[ConstraintSchema] = []
     objectives: list[ObjectiveSchema]
