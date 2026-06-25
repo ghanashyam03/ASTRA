@@ -197,3 +197,16 @@ To maintain the scientific credibility of ASTRA, validations are classified into
 *   **Runtime Characteristics**: $\approx 10 - 20$ seconds.
 *   **Limitations & Simplifications**: Ignores continuous third-body perturbations of the giant planets and solar gravity during multi-year legs.
 
+### 15. Instantaneous-Flyby Approximation Validation
+*   **Category**: Analytical & Physics Validation
+*   **Purpose**: Numerically measure the accuracy of the instantaneous-flyby (Rodrigues rotation) approximation against direct two-body Runge-Kutta 4(5) propagation.
+*   **Physical Assumptions**: Two-body planet-centric motion.
+*   **Validation Targets**:
+    *   Jupiter, Saturn, Uranus hyperbolic encounters.
+    *   Speed convergence error fraction $< 10^{-6}$ at $r_{\text{stop}}$.
+    *   Verify if $r_{\text{stop}} < R_{\text{SOI}}$ for each outer planet.
+*   **Expected Outputs**: Pass, with measured angular discrepancy $< 10^{-5}$ deg (Rodrigues rotation is mathematically exact for Keplerian trajectories).
+*   **Runtime Characteristics**: $< 10$ seconds.
+*   **Limitations & Simplifications**: Only validates the two-body hyperbolic pass; does not model third-body gravity or heliocentric cruise perturbations.
+
+
