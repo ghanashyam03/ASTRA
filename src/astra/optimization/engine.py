@@ -1017,3 +1017,108 @@ def optimize_mission_pinn_accelerated(
 
 # Alias to satisfy prerequisite checks
 optimize_mission_with_flyby = optimize_mission_mcts
+
+
+def optimize_mission_chain(
+    mission: CompiledMission,
+    kernel: PhysicsKernel,
+    chain_bodies: list[str],  # [origin, flyby1, ..., destination]
+    n_trials: int = 1500,
+    time_limit: float = 180.0,
+    seed: int = 42,
+) -> OptimizationResult:
+    """Optimize a multi-leg chain mission using the gated chain solver.
+
+    Decision variables (the ONLY things the optimizer is allowed to choose):
+      - departure_epoch
+      - tof_leg_i for each leg in the chain
+
+    The optimizer NEVER chooses a periapsis, turn angle, or B-plane target
+    directly — resolve_flyby_chain() derives those internally and enforces
+    feasibility. This is the structural fix: there is no parameter the
+    optimizer can set that bypasses the feasibility gate, because the gate
+    lives inside the function that turns parameters into a Trajectory, not
+    in a separate validation step that could be skipped.
+    """
+    import time as time_mod
+
+    from astra.optimization.chain_solver import ChainResult, resolve_flyby_chain
+
+    start = time_mod.time()
+    n_legs = len(chain_bodies) - 1
+    max_dv, max_days = _get_hard_limits(mission)
+    all_results: list[ChainResult] = []
+
+    def objective(trial: optuna.Trial) -> tuple[float, float]:
+        dep = trial.suggest_float(
+            "departure_epoch",
+            mission.departure_epoch_start,
+            mission.departure_epoch_end,
+        )
+        tofs = []
+        for leg_idx in range(n_legs):
+            tof_days = trial.suggest_float(
+                f"tof_leg_{leg_idx}_days",
+                30.0,
+                400.0,
+            )
+            tofs.append(tof_days * 86400.0)
+
+        flyby_specs = {
+            entry["body"]: {
+                "min_alt_km": entry["min_alt_km"],
+                "max_alt_km": entry["max_alt_km"],
+                "powered_allowed": entry["powered_allowed"],
+                "max_powered_km_s": entry["max_powered_km_s"],
+            }
+            for entry in mission.flyby_sequence
+        }
+
+        try:
+            result = resolve_flyby_chain(
+                mission,
+                kernel,
+                chain_bodies,
+                dep,
+                tofs,
+                flyby_specs,
+            )
+        except Exception:
+            return 99.0, 999.0
+
+        if not result.feasible or result.trajectory is None:
+            return 99.0, 999.0
+
+        result.trajectory.metadata["departure_epoch"] = dep
+        result.trajectory.metadata["leg_tofs"] = tofs
+        all_results.append(result)
+        dv = result.trajectory.delta_v_total
+        days = result.trajectory.duration_days
+        if dv > max_dv or days > max_days:
+            return 99.0 + dv, 999.0 + days
+        return dv, days
+
+    sampler = optuna.samplers.NSGAIISampler(seed=seed)
+    study = optuna.create_study(directions=["minimize", "minimize"], sampler=sampler)
+    study.optimize(objective, n_trials=n_trials, timeout=time_limit)
+
+    wall_time = time_mod.time() - start
+    feasible_trajectories = [
+        r.trajectory
+        for r in all_results
+        if r.trajectory is not None
+        and r.trajectory.delta_v_total <= max_dv
+        and r.trajectory.duration_days <= max_days
+    ]
+    best = min(feasible_trajectories, key=lambda t: t.delta_v_total, default=None)
+
+    return OptimizationResult(
+        best_trajectory=best,
+        pareto_front=[],
+        all_trajectories=feasible_trajectories,
+        n_evaluations=len(study.trials),
+        n_feasible=len(feasible_trajectories),
+        wall_time_s=wall_time,
+        converged=best is not None,
+        optimizer_strategy="chain_gated",
+    )
