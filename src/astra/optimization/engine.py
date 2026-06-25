@@ -1059,11 +1059,15 @@ def optimize_mission_chain(
             mission.departure_epoch_end,
         )
         tofs = []
+        tof_min = mission.tof_min_seconds / 86400.0 if hasattr(mission, "tof_min_seconds") else 30.0
+        tof_max = (
+            mission.tof_max_seconds / 86400.0 if hasattr(mission, "tof_max_seconds") else 400.0
+        )
         for leg_idx in range(n_legs):
             tof_days = trial.suggest_float(
                 f"tof_leg_{leg_idx}_days",
-                30.0,
-                400.0,
+                tof_min,
+                tof_max,
             )
             tofs.append(tof_days * 86400.0)
 
