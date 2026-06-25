@@ -1,0 +1,67 @@
+[
+  {
+    "name": "venus_audit_2032_original_failure",
+    "description": "The original Earth-Venus-Mars audit failure: required turn far exceeds Venus's physical deflection ceiling for this approach speed. Computed using v_inf = 13.355 km/s to match the actual audit conditions.",
+    "body": "VENUS",
+    "v_inf_km_s": 13.355,
+    "min_periapsis_alt_km": 300.0,
+    "required_turn_deg": 156.85,
+    "expected_unpowered_ceiling_deg_approx": 25.75,
+    "must_be_achievable_unpowered": false,
+    "must_be_achievable_with_unlimited_burn": false
+  },
+  {
+    "name": "earth_grazing_extreme_turn",
+    "description": "An Earth flyby demanding a near-180° turn at typical interplanetary approach speed — should fail even the unlimited-burn ceiling test, since asin(1/e_in)+90° still has a finite bound for any e_in > 1.",
+    "body": "EARTH",
+    "v_inf_km_s": 10.0,
+    "min_periapsis_alt_km": 500.0,
+    "required_turn_deg": 179.0,
+    "expected_unpowered_ceiling_deg_approx": 43.05,
+    "must_be_achievable_unpowered": false,
+    "must_be_achievable_with_unlimited_burn": false
+  },
+  {
+    "name": "mercury_modest_turn_should_pass",
+    "description": "A CONTROL case — a modest, clearly achievable turn at Mercury, included to prove the bank also correctly ACCEPTS reasonable geometry, not just rejects everything.",
+    "body": "MERCURY",
+    "v_inf_km_s": 5.0,
+    "min_periapsis_alt_km": 200.0,
+    "required_turn_deg": 15.0,
+    "expected_unpowered_ceiling_deg_approx": 28.99,
+    "must_be_achievable_unpowered": true,
+    "must_be_achievable_with_unlimited_burn": true
+  },
+  {
+    "name": "jupiter_voyager_class_large_turn",
+    "description": "A large but historically-realistic turn angle at Jupiter (Voyager-class flybys achieved tens of degrees of deflection at large v_inf using Jupiter's enormous μ) — included as a control case proving the bank doesn't falsely reject large-but-real planetary deflections.",
+    "body": "JUPITER",
+    "v_inf_km_s": 10.0,
+    "min_periapsis_alt_km": 350000.0,
+    "required_turn_deg": 45.0,
+    "must_be_achievable_unpowered": true,
+    "must_be_achievable_with_unlimited_burn": true
+  },
+  {
+    "name": "mars_infeasible_extreme_turn",
+    "description": "A Mars flyby requiring a 120-degree turn at 6 km/s. The unpowered ceiling is 28.83 degrees and the powered ceiling is 104.41 degrees, making this case completely infeasible.",
+    "body": "MARS",
+    "v_inf_km_s": 6.0,
+    "min_periapsis_alt_km": 200.0,
+    "required_turn_deg": 120.0,
+    "expected_unpowered_ceiling_deg_approx": 28.83,
+    "must_be_achievable_unpowered": false,
+    "must_be_achievable_with_unlimited_burn": false
+  },
+  {
+    "name": "saturn_feasible_modest_turn",
+    "description": "A Saturn flyby requiring a 35-degree turn at 15 km/s. The unpowered ceiling is 94.62 degrees, making this case fully achievable without any burn.",
+    "body": "SATURN",
+    "v_inf_km_s": 15.0,
+    "min_periapsis_alt_km": 500.0,
+    "required_turn_deg": 35.0,
+    "expected_unpowered_ceiling_deg_approx": 94.62,
+    "must_be_achievable_unpowered": true,
+    "must_be_achievable_with_unlimited_burn": true
+  }
+]
