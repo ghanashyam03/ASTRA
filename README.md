@@ -644,6 +644,8 @@ uv run pytest tests/benchmark/test_full_system_acceptance.py -v -m slow
 | 10 | Regression Lock | Regression Prevention | Standard Earth-Mars 2031 $\Delta v$ within $\pm 2\%$ of baseline |
 | 11 | Galileo VEEGA (1989) | Historical Mission-Inspired | Multi-leg gated chain optimizer test (Correctly Non-convergent due to hardcoded bounds) |
 | 12 | Cassini VVE (1997) | Historical Mission-Inspired | Repeated-body query verification & non-convergence under patched-conics limits |
+| 13 | MESSENGER Chain (2004) | Historical Mission-Inspired | Multi-leg gated chain optimizer test with origin reappearing as flyby (Correctly Non-convergent due to lack of resonant/multi-rev transfer support) |
+| 14 | Voyager 2 Grand Tour (1977) | Historical Mission-Inspired | Multi-leg gated chain optimizer test for giant planets (Correctly Non-convergent due to search space complexity and sensitivity) |
 
 
 

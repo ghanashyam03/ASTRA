@@ -173,3 +173,27 @@ To maintain the scientific credibility of ASTRA, validations are classified into
 *   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
 *   **Limitations & Simplifications**: Excludes Cassini's distant Jupiter pass; ignores 1:1 resonance physics and continuous third-body gravity.
 
+### 13. MESSENGER Chain (2004)
+*   **Category**: Historical Mission-Inspired Validation
+*   **Purpose**: Test the multi-leg optimizer on a chain with the launch origin body (Earth) reappearing later in the sequence as a flyby (Earth-Earth-Venus-Venus-Mercury-Mercury-Mercury).
+*   **Specification File**: `data/benchmarks/messenger_chain_2004.yaml`
+*   **Physical Assumptions**: Patched-conics, double-precision ephemerides, circular departure (200 km LEO), circular capture at Mercury (200 km).
+*   **Validation Targets**:
+    *   Verify the origin body reused as a flyby queries distinct epochs (launch epoch vs ~1 year later flyby epoch).
+    *   Characterize model fidelity limits (lack of resonant/multi-rev transfers and leg TOF bounds).
+*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 1500 evaluations), with the origin-vs-flyby epoch separation check successfully verified.
+*   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
+*   **Limitations & Simplifications**: Ignores resonant orbits (1:1 Earth-Earth and Venus-Venus) and continuous solar gravity perturbations.
+
+### 14. Voyager 2 Grand Tour (1977)
+*   **Category**: Historical Mission-Inspired Validation
+*   **Purpose**: Test the gated chain solver on a 4-flyby sequence visiting all four giant outer planets (Earth-Jupiter-Saturn-Uranus-Neptune) under generous leg TOF bounds.
+*   **Specification File**: `data/benchmarks/voyager2_grand_tour_1977.yaml`
+*   **Physical Assumptions**: Patched-conics, double-precision ephemerides, circular departure (200 km LEO), circular capture placeholder at Neptune (10000 km).
+*   **Validation Targets**:
+    *   Test optimizer search capability over a 12-year cruise with high sensitivity to epoch timings.
+    *   Demonstrate that the chain solver enforces physical deflection limits for outer planets without silently accepting infeasible trajectories.
+*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 2000 evaluations) due to high sensitivity of the search space, unpowered flybys, and absence of intermediate correction maneuvers beyond a small budget.
+*   **Runtime Characteristics**: $\approx 10 - 20$ seconds.
+*   **Limitations & Simplifications**: Ignores continuous third-body perturbations of the giant planets and solar gravity during multi-year legs.
+
