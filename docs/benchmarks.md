@@ -149,3 +149,27 @@ To maintain the scientific credibility of ASTRA, validations are classified into
 *   **Captures**: Best $\Delta v$, Pareto size, and hypervolume indicator (HVI) for Earth-Mars 2031.
 *   **Tolerance**: $\Delta v \pm 2\%$, Pareto size $\pm 30\%$.
 *   **Update Process**: Run `uv run python tests/benchmark/update_baseline.py` after verified improvement.
+
+### 11. Galileo VEEGA (1989)
+*   **Category**: Historical Mission-Inspired Validation
+*   **Purpose**: Test the multi-leg optimizer on a multi-year, 3-flyby gravity-assist sequence (Venus-Earth-Earth-Jupiter).
+*   **Specification File**: `data/benchmarks/galileo_veega_1989.yaml`
+*   **Physical Assumptions**: Patched-conics, double-precision ephemerides, circular departure (300 km LEO), circular capture at Jupiter (200000 km).
+*   **Validation Targets**:
+    *   Honest documentation of model fidelity limits (the patched-conics model cannot resolve Galileo's 731-day Earth-Earth resonance loop and 1094-day Earth-Jupiter transfer due to the optimizer's hardcoded 400-day leg TOF limit and single-rev restriction).
+*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 1500 evaluations) under these constraints, with strict physical self-consistency checks.
+*   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
+*   **Limitations & Simplifications**: Neglects continuous third-body perturbations and resonant multi-rev legs.
+
+### 12. Cassini VVE (1997)
+*   **Category**: Historical Mission-Inspired Validation
+*   **Purpose**: Test the multi-leg optimizer on a sequence with consecutive flybys of the same body (Venus-Venus-Earth-Saturn).
+*   **Specification File**: `data/benchmarks/cassini_vve_1998.yaml`
+*   **Physical Assumptions**: Patched-conics, double-precision ephemerides, circular departure (300 km LEO), circular capture placeholder at Saturn (100000 km).
+*   **Validation Targets**:
+    *   Verify repeated-body state lookups query distinct epochs.
+    *   Characterize model fidelity limits (lack of 1:1 resonance for the Venus-Venus transfer and 400-day leg TOF limit).
+*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 1500 evaluations), with repeated-body lookups successfully verified to query distinct planetary positions.
+*   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
+*   **Limitations & Simplifications**: Excludes Cassini's distant Jupiter pass; ignores 1:1 resonance physics and continuous third-body gravity.
+
