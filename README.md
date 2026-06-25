@@ -552,7 +552,7 @@ $$\delta = \arcsin(1/e_{\text{in}}) + \arcsin(1/e_{\text{out}})$$
 ### Feasibility Checking & Powered Correction Resolver
 In multi-leg sequences where incoming and outgoing excess speed magnitudes are fixed by independent Lambert transfers, the turn angle and burn requirements are solved via a deterministic search over periapsis $r_p$ within safe altitude bounds:
 1. **Unpowered Feasibility**: Verified via `check_flyby_feasibility` to see if gravity alone satisfies the required turn with numerical speed conservation.
-2. **Powered Correction Search**: If required deflection exceeds the unpowered ceiling, a bounded grid search finds the $r_p$ that satisfies $\delta$ while minimizing powered $\Delta v$. If no valid $r_p$ achieves the turn, or the required $\Delta v$ exceeds the local and DSM budgets, the leg is hard-rejected.
+2. **Powered Correction Search**: If required deflection exceeds the unpowered ceiling, an exact bisection solver finds the unique $r_p$ that achieves the required deflection $\delta$. By exploiting the monotonicity of the achieved turn angle as a function of periapsis, the solver is guaranteed to converge to the unique solution (if one exists within the safe bounds) or reject the sequence as geometrically impossible.
 
 ---
 

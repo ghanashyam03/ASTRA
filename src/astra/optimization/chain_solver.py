@@ -42,6 +42,56 @@ class ChainResult:
     reason_code: RejectionReason | None = None
 
 
+def _achieved_turn(r_p: float, v_inf_in_mag: float, v_inf_out_mag: float, mu: float) -> float:
+    e_in = 1.0 + r_p * v_inf_in_mag**2 / mu
+    e_out = 1.0 + r_p * v_inf_out_mag**2 / mu
+    return math.asin(min(1.0, 1.0 / e_in)) + math.asin(min(1.0, 1.0 / e_out))
+
+
+def _solve_periapsis_bisection(
+    required_turn_rad: float,
+    v_inf_in_mag: float,
+    v_inf_out_mag: float,
+    mu: float,
+    r_min: float,
+    r_max: float,
+    tol: float = 1e-9,
+    max_iter: int = 100,
+) -> float | None:
+    """Exact bisection exploiting the proven monotonicity of achieved_turn(r_p).
+
+    Returns None if required_turn_rad is outside the achievable range at the
+    ENDPOINTS [r_min, r_max] — i.e. no root exists in the search interval,
+    which is itself meaningful information (not a numerical failure).
+    """
+    turn_at_min = _achieved_turn(r_min, v_inf_in_mag, v_inf_out_mag, mu)
+    turn_at_max = _achieved_turn(r_max, v_inf_in_mag, v_inf_out_mag, mu)
+
+    # achieved_turn is decreasing in r_p, so turn_at_min >= turn_at_max
+    # Add a tiny tolerance for the boundary check to prevent rejecting
+    # valid edge solutions due to floating-point noise.
+    eps = 1e-12
+    if not (turn_at_max - eps <= required_turn_rad <= turn_at_min + eps):
+        return None  # no root in [r_min, r_max] — genuinely infeasible here
+
+    # Clip required_turn_rad to the valid range [turn_at_max, turn_at_min] to ensure
+    # that the bisection interval remains mathematically sound.
+    required_turn_rad = max(turn_at_max, min(turn_at_min, required_turn_rad))
+
+    lo, hi = r_min, r_max
+    for _ in range(max_iter):
+        mid = (lo + hi) / 2.0
+        turn_mid = _achieved_turn(mid, v_inf_in_mag, v_inf_out_mag, mu)
+        if abs(turn_mid - required_turn_rad) < tol:
+            return mid
+        # achieved_turn decreasing: if turn_mid > required, need LARGER r_p
+        if turn_mid > required_turn_rad:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
 def resolve_single_flyby_segment(
     body: str,
     v_inf_in: np.ndarray,
@@ -100,18 +150,16 @@ def resolve_single_flyby_segment(
         }, None
 
     # Case B: Powered periapsis burn needed (magnitude mismatch and/or turn angle beyond ceiling)
-    best_powered_dv = float("inf")
-    best_r_p = None
-    for r_p in np.linspace(r_min, r_max, 200):
-        v_peri_in = math.sqrt(v_inf_in_mag**2 + 2.0 * mu_body / r_p)
-        v_peri_out_needed = math.sqrt(v_inf_out_mag**2 + 2.0 * mu_body / r_p)
-        powered_candidate = abs(v_peri_out_needed - v_peri_in)
-        e_in = 1.0 + r_p * v_inf_in_mag**2 / mu_body
-        e_out = 1.0 + r_p * v_inf_out_mag**2 / mu_body
-        achieved_turn = math.asin(min(1.0, 1.0 / e_in)) + math.asin(min(1.0, 1.0 / e_out))
-        if abs(achieved_turn - required_turn_rad) < 1e-3 and powered_candidate < best_powered_dv:
-            best_powered_dv = powered_candidate
-            best_r_p = float(r_p)
+    best_r_p = _solve_periapsis_bisection(
+        required_turn_rad, v_inf_in_mag, v_inf_out_mag, mu_body, r_min, r_max
+    )
+
+    if best_r_p is not None:
+        v_peri_in = math.sqrt(v_inf_in_mag**2 + 2.0 * mu_body / best_r_p)
+        v_peri_out_needed = math.sqrt(v_inf_out_mag**2 + 2.0 * mu_body / best_r_p)
+        best_powered_dv = abs(v_peri_out_needed - v_peri_in)
+    else:
+        best_powered_dv = float("inf")
 
     if best_r_p is None:
         err = (
