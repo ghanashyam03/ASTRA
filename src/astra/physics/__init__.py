@@ -34,6 +34,10 @@ from astra.physics.flyby import (
     periapsis_from_impact_parameter,
     periapsis_from_turn_angle,
 )
+from astra.physics.flyby_validation import (
+    FlybyApproximationCheck,
+    numerical_flyby_check,
+)
 from astra.physics.kernel import PhysicsKernel
 from astra.physics.lambert import (
     LambertSolution,
@@ -68,6 +72,7 @@ __all__ = [
     "DEFAULT_PARKING_ALTITUDE_KM",
     "EphemerisEngine",
     "EphemerisTarget",
+    "FlybyApproximationCheck",
     "FlybyFeasibility",
     "FlybyResult",
     "IntegrationResult",
@@ -96,6 +101,7 @@ __all__ = [
     "is_in_soi",
     "max_achievable_turn_angle",
     "max_achievable_turn_angle_with_unlimited_burn",
+    "numerical_flyby_check",
     "periapsis_from_impact_parameter",
     "periapsis_from_turn_angle",
     "propagate_to_times",
