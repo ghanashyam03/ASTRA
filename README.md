@@ -646,6 +646,8 @@ uv run pytest tests/benchmark/test_full_system_acceptance.py -v -m slow
 | 12 | Cassini VVE (1997) | Historical Mission-Inspired | Repeated-body query verification & non-convergence under patched-conics limits |
 | 13 | MESSENGER Chain (2004) | Historical Mission-Inspired | Multi-leg gated chain optimizer test with origin reappearing as flyby (Correctly Non-convergent due to lack of resonant/multi-rev transfer support) |
 | 14 | Voyager 2 Grand Tour (1977) | Historical Mission-Inspired | Multi-leg gated chain optimizer test for giant planets (Correctly Non-convergent due to search space complexity and sensitivity) |
+| 15 | Instantaneous-Flyby Approximation | Analytical & Physics | Numerical comparison of closed-form Rodrigues rotation vs RK45 integration (Discrepancy < 1e-5 deg) |
+
 
 
 
