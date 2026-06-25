@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
@@ -24,12 +25,21 @@ from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody, Orbita
 from astra.state.trajectory import Maneuver, Trajectory
 
 
+class RejectionReason(StrEnum):
+    LAMBERT_FAILED = "lambert_failed"
+    UNKNOWN_BODY = "unknown_body"
+    ZERO_V_INF = "zero_v_inf"
+    IMPOSSIBLE_GEOMETRY = "impossible_geometry"
+    BUDGET_EXCEEDED = "budget_exceeded"
+
+
 @dataclass
 class ChainResult:
     feasible: bool
     trajectory: Trajectory | None
     reason: str | None
     leg_details: list[dict[str, Any]] = field(default_factory=list)
+    reason_code: RejectionReason | None = None
 
 
 def resolve_single_flyby_segment(
@@ -180,7 +190,12 @@ def resolve_flyby_chain(
             )
             leg_solutions.append(sol)
         except Exception as e:
-            return ChainResult(False, None, f"Leg {i} Lambert solve failed: {e}")
+            return ChainResult(
+                False,
+                None,
+                f"Leg {i} Lambert solve failed: {e}",
+                reason_code=RejectionReason.LAMBERT_FAILED,
+            )
 
     maneuvers: list[Maneuver] = []
     dsm_remaining = mission.dsm_budget_km_s
@@ -218,7 +233,15 @@ def resolve_flyby_chain(
             dsm_budget_available=dsm_remaining,
         )
         if res is None:
-            return ChainResult(False, None, err, leg_details)
+            reason_code = RejectionReason.IMPOSSIBLE_GEOMETRY
+            if err is not None:
+                if "requires" in err and "correction" in err:
+                    reason_code = RejectionReason.BUDGET_EXCEEDED
+                elif "Unknown celestial body" in err:
+                    reason_code = RejectionReason.UNKNOWN_BODY
+                elif "Excess velocity magnitudes" in err:
+                    reason_code = RejectionReason.ZERO_V_INF
+            return ChainResult(False, None, err, leg_details, reason_code=reason_code)
 
         dsm_remaining -= res["from_dsm"]
         v_inf_in_mag = float(np.linalg.norm(v_inf_in))
@@ -270,4 +293,4 @@ def resolve_flyby_chain(
         maneuvers=maneuvers,
         metadata={"chain": chain_bodies, "leg_details": leg_details},
     )
-    return ChainResult(True, trajectory, None, leg_details)
+    return ChainResult(True, trajectory, None, leg_details, reason_code=None)

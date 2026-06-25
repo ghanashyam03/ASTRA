@@ -40,6 +40,7 @@ class OptimizationResult:
     refinement_improvement_km_s: float | None = None
     refinement_evaluations: int | None = None
     optimizer_strategy: str | None = None
+    rejection_reasons: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -50,6 +51,7 @@ class OptimizationResult:
             "best_trajectory": self.best_trajectory.to_dict() if self.best_trajectory else None,
             "pareto_front_size": len(self.pareto_front),
             "pareto_front": [t.to_dict() for t in self.pareto_front],
+            "rejection_reasons": self.rejection_reasons,
         }
         if self.optimizer_strategy is not None:
             d["optimizer_strategy"] = self.optimizer_strategy
@@ -1048,6 +1050,7 @@ def optimize_mission_chain(
     n_legs = len(chain_bodies) - 1
     max_dv, max_days = _get_hard_limits(mission)
     all_results: list[ChainResult] = []
+    rejection_reasons: dict[str, int] = {}
 
     def objective(trial: optuna.Trial) -> tuple[float, float]:
         dep = trial.suggest_float(
@@ -1083,10 +1086,18 @@ def optimize_mission_chain(
                 tofs,
                 flyby_specs,
             )
-        except Exception:
+        except Exception as e:
+            reason = f"exception: {type(e).__name__}"
+            rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
             return 99.0, 999.0
 
         if not result.feasible or result.trajectory is None:
+            reason = (
+                str(result.reason_code.value)
+                if (hasattr(result, "reason_code") and result.reason_code is not None)
+                else "unknown"
+            )
+            rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
             return 99.0, 999.0
 
         result.trajectory.metadata["departure_epoch"] = dep
@@ -1095,6 +1106,8 @@ def optimize_mission_chain(
         dv = result.trajectory.delta_v_total
         days = result.trajectory.duration_days
         if dv > max_dv or days > max_days:
+            reason = "hard_constraints_violated"
+            rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
             return 99.0 + dv, 999.0 + days
         return dv, days
 
@@ -1121,4 +1134,5 @@ def optimize_mission_chain(
         wall_time_s=wall_time,
         converged=best is not None,
         optimizer_strategy="chain_gated",
+        rejection_reasons=rejection_reasons,
     )
