@@ -618,6 +618,7 @@ ASTRA supports 6 trajectory optimization strategies tailored for different plane
 4. **Discrete sequence search (`mcts`)**: Trajectory sequence planner utilizing Monte Carlo Tree Search to explore planetary flyby paths and optimal synodic schedules.
 5. **Gravity Deflection (`flyby`)**: Deflection optimization for powered and unpowered flybys, satisfying minimum periapsis clearances.
 6. **PINN Acceleration (`pinn`)**: Deep ensemble Cartesian velocity prediction utilizing Physics-Informed Neural Networks with conservation loss residuals and epistemic uncertainty-aware active learning.
+7. **Gated Chain Optimization (`chain_gated`)**: Multi-leg trajectory chain optimization over departure epoch and leg TOFs, enforcing strict physical deflection feasibility via `optimize_mission_chain` and the gated chain resolver.
 
 ## Running the Acceptance Test
 
@@ -641,6 +642,9 @@ uv run pytest tests/benchmark/test_full_system_acceptance.py -v -m slow
 | 8 | Earth-Mars 2031 (Long TOF) | Benchmark Validation | Multi-rev optimal $\Delta v \approx 14.29$ km/s |
 | 9 | Earth-Venus-Mars 2032 Flyby | Multi-body Gravity-Assist | Total $\Delta v < 9.0$ km/s, Venus periapsis $> 300$ km |
 | 10 | Regression Lock | Regression Prevention | Standard Earth-Mars 2031 $\Delta v$ within $\pm 2\%$ of baseline |
+| 11 | Galileo VEEGA (1989) | Historical Mission-Inspired | Multi-leg gated chain optimizer test (Correctly Non-convergent due to hardcoded bounds) |
+| 12 | Cassini VVE (1997) | Historical Mission-Inspired | Repeated-body query verification & non-convergence under patched-conics limits |
+
 
 
 
