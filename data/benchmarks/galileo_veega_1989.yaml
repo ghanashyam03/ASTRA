@@ -1,0 +1,84 @@
+version: "1.0"
+mission_id: "galileo_veega_1989_validation"
+
+spacecraft:
+  name: "Galileo"
+  dry_mass_kg: 2223.0
+  fuel_mass_kg: 925.0
+  propulsion:
+    type: chemical
+    isp_seconds: 308.0
+    thrust_newtons: 400.0
+
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 300.0
+  destination:
+    body: Jupiter
+    orbit:
+      type: circular
+      altitude_km: 200000.0
+
+multi_body_trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 300.0
+  destination:
+    body: Jupiter
+    orbit:
+      type: circular
+      altitude_km: 200000.0
+  flyby_sequence:
+    - body: VENUS
+      min_periapsis_alt_km: 300.0
+      max_periapsis_alt_km: 20000.0
+      powered_burn_allowed: false
+    - body: EARTH
+      min_periapsis_alt_km: 500.0
+      max_periapsis_alt_km: 20000.0
+      powered_burn_allowed: false
+    - body: EARTH
+      min_periapsis_alt_km: 300.0
+      max_periapsis_alt_km: 20000.0
+      powered_burn_allowed: true
+      max_powered_burn_km_s: 0.3
+  dsm_budget_km_s: 0.5      # VERIFY: real VEEGA included deterministic correction
+                            # maneuvers between legs — this budget approximates
+                            # that allowance; check published Δv budget if available
+  max_revs_per_leg: 0
+
+launch_window:
+  start: "1989-10-01T00:00:00Z"
+  end: "1989-10-30T00:00:00Z"
+  resolution_days: 1
+  tof_min_days: 30
+  tof_max_days: 200
+
+constraints:
+  - type: max_delta_v
+    value_km_s: 6.0
+    hard: true
+  - type: max_duration
+    value_days: 2200    # VEEGA took ~6 years to Jupiter — verify exact figure
+    hard: true
+
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+
+physics:
+  models: [patched_conics]
+  ephemeris: DE440
+
+optimization:
+  strategy: bayesian
+  budget:
+    max_evaluations: 2000
+    time_limit_seconds: 240
+  seed: 7
