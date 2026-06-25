@@ -37,6 +37,8 @@ SAFE_FLYBY_ALTITUDE_KM: dict[str, float] = {
     "MARS": 200.0,
     "JUPITER": 500.0,
     "SATURN": 500.0,
+    "URANUS": 1000.0,  # Giant planet with deep atmosphere and ring hazard margin
+    "NEPTUNE": 1000.0,  # Giant planet with deep atmosphere and ring hazard margin
 }
 
 

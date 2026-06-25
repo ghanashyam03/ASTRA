@@ -1,0 +1,81 @@
+version: "1.0"
+mission_id: "voyager2_grand_tour_1977_validation"
+
+spacecraft:
+  name: "Voyager 2"
+  dry_mass_kg: 721.9
+  fuel_mass_kg: 104.9
+  propulsion:
+    type: chemical
+    isp_seconds: 290.0
+    thrust_newtons: 325.0
+
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Neptune
+    orbit:
+      type: circular
+      altitude_km: 10000.0
+
+multi_body_trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Neptune
+    orbit:
+      type: circular
+      altitude_km: 10000.0
+  flyby_sequence:
+    - body: JUPITER
+      min_periapsis_alt_km: 1000.0
+      max_periapsis_alt_km: 2000000.0
+      powered_burn_allowed: false
+    - body: SATURN
+      min_periapsis_alt_km: 1000.0
+      max_periapsis_alt_km: 2000000.0
+      powered_burn_allowed: false
+    - body: URANUS
+      min_periapsis_alt_km: 1000.0
+      max_periapsis_alt_km: 2000000.0
+      powered_burn_allowed: false
+  dsm_budget_km_s: 0.2      # Approximate correction maneuvers budget (estimate)
+  max_revs_per_leg: 0
+
+launch_window:
+  start: "1977-08-01T00:00:00Z"
+  end: "1977-08-31T00:00:00Z"
+  resolution_days: 1
+  tof_min_days: 400
+  tof_max_days: 2000
+
+constraints:
+  - type: max_delta_v
+    value_km_s: 20.0
+    hard: true
+  - type: max_duration
+    value_days: 6000
+    hard: true
+
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+
+physics:
+  models: [patched_conics]
+  ephemeris: DE440
+
+optimization:
+  strategy: bayesian
+  budget:
+    max_evaluations: 2000
+    time_limit_seconds: 300
+  seed: 11

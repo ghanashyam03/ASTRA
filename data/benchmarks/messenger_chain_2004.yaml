@@ -1,0 +1,92 @@
+version: "1.0"
+mission_id: "messenger_chain_2004_validation"
+
+spacecraft:
+  name: "MESSENGER"
+  dry_mass_kg: 507.0
+  fuel_mass_kg: 600.0
+  propulsion:
+    type: chemical
+    isp_seconds: 304.7
+    thrust_newtons: 645.0
+
+trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Mercury
+    orbit:
+      type: circular
+      altitude_km: 200.0
+
+multi_body_trajectory:
+  origin:
+    body: Earth
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  destination:
+    body: Mercury
+    orbit:
+      type: circular
+      altitude_km: 200.0
+  flyby_sequence:
+    - body: EARTH
+      min_periapsis_alt_km: 500.0
+      max_periapsis_alt_km: 20000.0
+      powered_burn_allowed: true
+      max_powered_burn_km_s: 0.3
+    - body: VENUS
+      min_periapsis_alt_km: 300.0
+      max_periapsis_alt_km: 20000.0
+      powered_burn_allowed: false
+    - body: VENUS
+      min_periapsis_alt_km: 300.0
+      max_periapsis_alt_km: 20000.0
+      powered_burn_allowed: false
+    - body: MERCURY
+      min_periapsis_alt_km: 200.0
+      max_periapsis_alt_km: 15000.0
+      powered_burn_allowed: true
+      max_powered_burn_km_s: 0.3
+    - body: MERCURY
+      min_periapsis_alt_km: 200.0
+      max_periapsis_alt_km: 15000.0
+      powered_burn_allowed: true
+      max_powered_burn_km_s: 0.3
+  dsm_budget_km_s: 0.3      # Approximate corrections/TCMs budget
+  max_revs_per_leg: 0
+
+launch_window:
+  start: "2004-08-01T00:00:00Z"
+  end: "2004-08-15T00:00:00Z"
+  resolution_days: 1
+  tof_min_days: 30
+  tof_max_days: 500
+
+constraints:
+  - type: max_delta_v
+    value_km_s: 15.0
+    hard: true
+  - type: max_duration
+    value_days: 3000
+    hard: true
+
+objectives:
+  - metric: delta_v_total
+    direction: minimize
+    weight: 1.0
+
+physics:
+  models: [patched_conics]
+  ephemeris: DE440
+
+optimization:
+  strategy: bayesian
+  budget:
+    max_evaluations: 2000
+    time_limit_seconds: 300
+  seed: 11
