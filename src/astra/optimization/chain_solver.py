@@ -201,6 +201,64 @@ def resolve_single_flyby_segment(
     }, None
 
 
+@dataclass
+class DSMResolution:
+    dsm_epoch: float
+    dsm_position: np.ndarray
+    dsm_delta_v_km_s: float
+    dsm_delta_v_vector: np.ndarray
+    effective_arrival_velocity: np.ndarray  # replaces the original leg's v2
+    v_after_dsm: np.ndarray
+
+
+def resolve_leg_with_dsm(
+    r1: np.ndarray,
+    v1_original: np.ndarray,
+    r2: np.ndarray,
+    v2_destination_body: np.ndarray,
+    t_start: float,
+    tof_leg: float,
+    dsm_fraction: float,
+    mu_sun: float,
+    max_revs: int = 0,
+) -> DSMResolution:
+    """Implements the exact 5-step composition above. dsm_fraction must be
+    in (0, 1) — values at or near the endpoints are degenerate (DSM at the
+    very start or very end of a leg provides no benefit over adjusting the
+    original Lambert solve directly) and should be avoided by the caller's
+    search range, not specially handled here."""
+    from astra.physics.lambert import find_best_transfer
+    from astra.physics.propagator import propagate_two_body
+    from astra.state.orbital_state import CelestialBody, OrbitalState
+
+    t_dsm_offset = dsm_fraction * tof_leg
+    state_before = propagate_two_body(
+        OrbitalState(
+            epoch=t_start, position=r1, velocity=v1_original, central_body=CelestialBody.SUN
+        ),
+        dt_seconds=t_dsm_offset,
+    )
+    remaining_tof = (1.0 - dsm_fraction) * tof_leg
+    sol_dsm = find_best_transfer(
+        r1=state_before.position,
+        v1_body=state_before.velocity,
+        r2=r2,
+        v2_body=v2_destination_body,
+        tof=remaining_tof,
+        mu=mu_sun,
+        max_revs=max_revs,
+    )
+    dsm_vec = sol_dsm.v1 - state_before.velocity
+    return DSMResolution(
+        dsm_epoch=t_start + t_dsm_offset,
+        dsm_position=state_before.position.copy(),
+        dsm_delta_v_km_s=float(np.linalg.norm(dsm_vec)),
+        dsm_delta_v_vector=dsm_vec,
+        effective_arrival_velocity=sol_dsm.v2,
+        v_after_dsm=sol_dsm.v1,
+    )
+
+
 def resolve_flyby_chain(
     mission: CompiledMission,
     kernel: PhysicsKernel,
@@ -209,6 +267,7 @@ def resolve_flyby_chain(
     leg_tofs: list[float],  # len = len(chain_bodies) - 1
     flyby_specs: dict[str, dict[str, Any]],  # body_name -> {min_alt_km, max_alt_km,
     #               powered_allowed, max_powered_km_s}
+    dsm_fractions: list[float | None] | None = None,
 ) -> ChainResult:
     """Resolve a full multi-leg chain with mandatory per-flyby feasibility checking."""
     assert len(leg_tofs) == len(chain_bodies) - 1
@@ -255,6 +314,53 @@ def resolve_flyby_chain(
     dv_tmi_vec = (v_inf_dep / max(float(np.linalg.norm(v_inf_dep)), 1e-10)) * dv_tmi
     maneuvers.append(Maneuver(epoch=epochs[0], delta_v=dv_tmi_vec, label="TMI"))
 
+    # Resolve DSMs on legs
+    dsm_resolutions = {}
+    arrival_velocities = []
+
+    for i in range(len(leg_tofs)):
+        sol_original = leg_solutions[i]
+        dsm_frac = dsm_fractions[i] if dsm_fractions is not None else None
+
+        if dsm_frac is not None:
+            try:
+                dsm_res = resolve_leg_with_dsm(
+                    r1=body_states[i].position,
+                    v1_original=sol_original.v1,
+                    r2=body_states[i + 1].position,
+                    v2_destination_body=body_states[i + 1].velocity,
+                    t_start=epochs[i],
+                    tof_leg=leg_tofs[i],
+                    dsm_fraction=dsm_frac,
+                    mu_sun=mu_sun,
+                    max_revs=mission.max_revs_per_leg,
+                )
+                dsm_resolutions[i] = dsm_res
+                dsm_remaining -= dsm_res.dsm_delta_v_km_s
+                arrival_velocities.append(dsm_res.effective_arrival_velocity)
+            except Exception as e:
+                return ChainResult(
+                    False,
+                    None,
+                    f"Leg {i} DSM resolve failed: {e}",
+                    reason_code=RejectionReason.LAMBERT_FAILED,
+                )
+
+            if dsm_remaining < -1e-9:
+                err_msg = (
+                    f"Leg {i} DSM cost {dsm_res.dsm_delta_v_km_s:.4f} km/s "
+                    f"exceeds remaining DSM budget "
+                    f"{dsm_remaining + dsm_res.dsm_delta_v_km_s:.4f} km/s"
+                )
+                return ChainResult(
+                    False,
+                    None,
+                    err_msg,
+                    reason_code=RejectionReason.BUDGET_EXCEEDED,
+                )
+        else:
+            arrival_velocities.append(sol_original.v2)
+
     # STEP 3: each intermediate flyby
     for k in range(1, len(chain_bodies) - 1):
         body = chain_bodies[k]
@@ -267,7 +373,7 @@ def resolve_flyby_chain(
                 "max_powered_km_s": 0.0,
             },
         )
-        v_inf_in = leg_solutions[k - 1].v2 - body_states[k].velocity
+        v_inf_in = arrival_velocities[k - 1] - body_states[k].velocity
         v_inf_out_required = leg_solutions[k].v1 - body_states[k].velocity
 
         res, err = resolve_single_flyby_segment(
@@ -314,7 +420,7 @@ def resolve_flyby_chain(
         leg_details.append(leg_detail)
 
     # STEP 4: arrival burn
-    v_inf_arr = body_states[-1].velocity - leg_solutions[-1].v2
+    v_inf_arr = body_states[-1].velocity - arrival_velocities[-1]
     dv_moi = arrival_delta_v(
         v_inf_arr,
         mission.capture_altitude_km,
@@ -324,17 +430,49 @@ def resolve_flyby_chain(
     dv_moi_vec = (v_inf_arr / max(float(np.linalg.norm(v_inf_arr)), 1e-10)) * dv_moi
     maneuvers.append(Maneuver(epoch=epochs[-1], delta_v=dv_moi_vec, label="MOI"))
 
-    states = [
+    # Add DSM maneuvers
+    for i in range(len(leg_tofs)):
+        if i in dsm_resolutions:
+            dsm_res = dsm_resolutions[i]
+            maneuvers.append(
+                Maneuver(
+                    epoch=dsm_res.dsm_epoch,
+                    delta_v=dsm_res.dsm_delta_v_vector,
+                    label=f"DSM_LEG_{i}",
+                )
+            )
+
+    maneuvers.sort(key=lambda m: m.epoch)
+
+    # Build states list chronologically
+    states = []
+    for i in range(len(leg_tofs)):
+        states.append(
+            OrbitalState(
+                epoch=epochs[i],
+                position=body_states[i].position.copy(),
+                velocity=leg_solutions[i].v1.copy(),
+                central_body=CelestialBody.SUN,
+            )
+        )
+        if i in dsm_resolutions:
+            dsm_res = dsm_resolutions[i]
+            states.append(
+                OrbitalState(
+                    epoch=dsm_res.dsm_epoch,
+                    position=dsm_res.dsm_position.copy(),
+                    velocity=dsm_res.v_after_dsm.copy(),
+                    central_body=CelestialBody.SUN,
+                )
+            )
+    states.append(
         OrbitalState(
-            epoch=epochs[i],
-            position=body_states[i].position.copy(),
-            velocity=(
-                leg_solutions[i].v1 if i < len(leg_solutions) else leg_solutions[-1].v2
-            ).copy(),
+            epoch=epochs[-1],
+            position=body_states[-1].position.copy(),
+            velocity=arrival_velocities[-1].copy(),
             central_body=CelestialBody.SUN,
         )
-        for i in range(len(chain_bodies))
-    ]
+    )
 
     trajectory = Trajectory(
         states=states,
