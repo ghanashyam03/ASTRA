@@ -1081,24 +1081,65 @@ def optimize_mission_chain(
             for entry in mission.flyby_sequence
         }
 
-        try:
-            result = resolve_flyby_chain(
-                mission,
-                kernel,
-                chain_bodies,
-                dep,
-                tofs,
-                flyby_specs,
-            )
-        except Exception as e:
-            reason = f"exception: {type(e).__name__}"
-            rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
-            return 99.0, 999.0
+        dsm_budget = getattr(mission, "dsm_budget_km_s", 0.0)
+        dsm_fractions: list[float | None] = [None] * n_legs
+        result = None
 
-        if not result.feasible or result.trajectory is None:
+        from astra.optimization.chain_solver import RejectionReason
+
+        while True:
+            try:
+                res = resolve_flyby_chain(
+                    mission,
+                    kernel,
+                    chain_bodies,
+                    dep,
+                    tofs,
+                    flyby_specs,
+                    dsm_fractions=dsm_fractions,
+                )
+            except Exception as e:
+                reason = f"exception: {type(e).__name__}"
+                rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+                return 99.0, 999.0
+
+            if res.feasible or res.trajectory is None:
+                result = res
+                break
+
+            is_case_c = res.reason_code in (
+                RejectionReason.IMPOSSIBLE_GEOMETRY,
+                RejectionReason.BUDGET_EXCEEDED,
+            )
+            if not is_case_c or dsm_budget <= 0.0:
+                result = res
+                break
+
+            failing_leg_idx = len(res.leg_details)
+            if failing_leg_idx < 0 or failing_leg_idx >= n_legs:
+                result = res
+                break
+
+            if dsm_fractions[failing_leg_idx] is not None:
+                result = res
+                break
+
+            use_dsm = trial.suggest_categorical(f"use_dsm_leg_{failing_leg_idx}", [True, False])
+            if use_dsm:
+                dsm_frac = trial.suggest_float(f"dsm_frac_leg_{failing_leg_idx}", 0.1, 0.9)
+                dsm_fractions[failing_leg_idx] = dsm_frac
+            else:
+                result = res
+                break
+
+        if result is None or not result.feasible or result.trajectory is None:
             reason = (
                 str(result.reason_code.value)
-                if (hasattr(result, "reason_code") and result.reason_code is not None)
+                if (
+                    result is not None
+                    and hasattr(result, "reason_code")
+                    and result.reason_code is not None
+                )
                 else "unknown"
             )
             rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
@@ -1106,6 +1147,8 @@ def optimize_mission_chain(
 
         result.trajectory.metadata["departure_epoch"] = dep
         result.trajectory.metadata["leg_tofs"] = tofs
+        if any(frac is not None for frac in dsm_fractions):
+            result.trajectory.metadata["dsm_fractions"] = dsm_fractions
         all_results.append(result)
         dv = result.trajectory.delta_v_total
         days = result.trajectory.duration_days
