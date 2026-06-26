@@ -150,7 +150,67 @@ To maintain the scientific credibility of ASTRA, validations are classified into
 *   **Tolerance**: $\Delta v \pm 2\%$, Pareto size $\pm 30\%$.
 *   **Update Process**: Run `uv run python tests/benchmark/update_baseline.py` after verified improvement.
 
-### 11. Galileo VEEGA (1989)
+### 11. MESSENGER Chain (2004)
+*   **Category**: Historical Mission-Inspired Validation
+*   **Purpose**: Verify the multi-leg optimizer's indexing and state query correctness when the launch origin body (Earth) reappears later in the sequence as a flyby (Earth-Earth-Venus-Venus-Mercury-Mercury-Mercury).
+*   **Specification File**: `data/benchmarks/messenger_chain_2004.yaml`
+*   **Physical Assumptions**: Patched-conics approximation, double-precision ephemerides (DE440), circular departure staging (200 km LEO), circular capture at Mercury (200 km).
+*   **Validation Targets**:
+    *   Confirm that when the origin body Earth is reused as a flyby (~1 year later), the solver queries Earth's position at the distinct flyby epoch rather than reusing the launch epoch position.
+    *   Characterize patched-conics limits (lack of resonant/multi-rev transfers and hard leg TOF bounds of 400 days).
+*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 1500 evaluations) under the search space limitations, with the launch-vs-flyby epoch separation check successfully verified to be $> 5\times10^5$ km.
+*   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
+*   **Limitations & Simplifications**: Ignores resonant orbits (1:1 Earth-Earth and Venus-Venus) and continuous solar gravity perturbations.
+
+### 12. Voyager 2 Grand Tour (1977)
+*   **Category**: Historical Mission-Inspired Validation
+*   **Purpose**: Test the multi-leg chain solver over a 12-year cruise visiting all four giant planets (Earth-Jupiter-Saturn-Uranus-Neptune) under unpowered flybys and realistic correction budgets.
+*   **Specification File**: `data/benchmarks/voyager2_grand_tour_1977.yaml`
+*   **Physical Assumptions**: Patched-conics approximation, double-precision ephemerides, circular departure (200 km LEO), circular capture placeholder at Neptune (10000 km).
+*   **Validation Targets**:
+    *   Verify optimization search capabilities over a high-dimensional (5 parameters), highly sensitive trajectory space.
+    *   Confirm the solver enforces physical deflection limits for outer planets without accepting unphysical geometries.
+*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 2000 evaluations) due to high chaotic sensitivity of the multi-body alignment under unpowered flight and restricted DSM budget.
+*   **Runtime Characteristics**: $\approx 10 - 20$ seconds.
+*   **Limitations & Simplifications**: Ignores continuous third-body perturbations of the giant planets and solar gravity during multi-year legs.
+
+### 13. Giant-Planet Approximation Measurement
+*   **Category**: Analytical & Physics Validation
+*   **Purpose**: Measure the accuracy of the instantaneous-flyby (Rodrigues rotation) approximation against direct two-body Runge-Kutta 4(5) propagation for Jupiter, Saturn, and Uranus.
+*   **Physical Assumptions**: Two-body planet-centric motion.
+*   **Validation Targets**:
+    *   Quantify the angular deflection discrepancy between the analytical model and numerical integration.
+    *   Determine the speed convergence distance $r_{\text{stop}}$ where the fractional speed deviation squared drops below $10^{-8}$.
+    *   Compare the stopping distance against the physical Sphere of Influence (SOI) of the giant planets.
+*   **Expected Outputs**: Pass, with measured angular discrepancy $< 10^{-5}$ deg (analytical deflection is mathematically exact for Keplerian trajectories).
+*   **Runtime Characteristics**: $< 10$ seconds.
+*   **Limitations & Simplifications**: Only validates the two-body hyperbolic pass; does not model third-body gravity or heliocentric cruise perturbations.
+
+### 14. Chain Solver Regression Bank
+*   **Category**: Regression Prevention
+*   **Purpose**: Verify the feasibility gate's ability to discriminate between physically possible and impossible deflection geometries based on approach speed ($v_{\infty}$) and periapsis altitude bounds.
+*   **Specification File**: `tests/regression/known_infeasible_cases.json`
+*   **Physical Assumptions**: Two-body planet-centric hyperbolic deflection limits.
+*   **Validation Targets**:
+    *   Reject known infeasible geometries (e.g. Venus 2032 original failure turn of 156.85°, Earth grazing 179° turn, Mars infeasible 120° turn).
+    *   Accept control cases representing realistic planetary assists (e.g. Mercury 15° turn, Jupiter Voyager-class 45° turn, Saturn 35° turn).
+*   **Expected Outputs**: 100% correct classification matching hand-derived analytical deflection bounds.
+*   **Runtime Characteristics**: $< 50$ ms.
+*   **Limitations & Simplifications**: Evaluates flybys in isolation; does not account for multi-leg heliocentric transfer conics.
+
+### 15. Trajectory Physics Audit Layer
+*   **Category**: Developer Tooling & Safety
+*   **Purpose**: Provide an independent, post-hoc validator that parses generated trajectories and verifies that all recorded flybys comply with two-body deflection bounds.
+*   **Physical Assumptions**: Two-body planet-centric hyperbolic excess velocity conservation and deflection ceilings.
+*   **Validation Targets**:
+    *   Catch and flag bug signatures (e.g., reporting zero flyby $\Delta v$ while requiring a deflection angle exceeding the planetary ceiling).
+    *   Verify that all conics produced by the chain solver pass validation cleanly.
+    *   Intercept the trajectory store flow (`save_trajectory` with `audit_before_save=True`) and raise `AuditFailure` on unphysical inputs.
+*   **Expected Outputs**: Correctly raises `AuditFailure` on invalid mock trajectories and passes clean solver outputs.
+*   **Runtime Characteristics**: $< 50$ ms.
+*   **Limitations & Simplifications**: Uses fresh Lambert BVP solves to reconstruct the incoming state, which is subject to branch/multi-revolution ambiguity.
+
+### 16. Galileo VEEGA (1989)
 *   **Category**: Historical Mission-Inspired Validation
 *   **Purpose**: Test the multi-leg optimizer on a multi-year, 3-flyby gravity-assist sequence (Venus-Earth-Earth-Jupiter).
 *   **Specification File**: `data/benchmarks/galileo_veega_1989.yaml`
@@ -161,7 +221,7 @@ To maintain the scientific credibility of ASTRA, validations are classified into
 *   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
 *   **Limitations & Simplifications**: Neglects continuous third-body perturbations and resonant multi-rev legs.
 
-### 12. Cassini VVE (1997)
+### 17. Cassini Venus-Venus-Earth (1997)
 *   **Category**: Historical Mission-Inspired Validation
 *   **Purpose**: Test the multi-leg optimizer on a sequence with consecutive flybys of the same body (Venus-Venus-Earth-Saturn).
 *   **Specification File**: `data/benchmarks/cassini_vve_1998.yaml`
@@ -173,40 +233,5 @@ To maintain the scientific credibility of ASTRA, validations are classified into
 *   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
 *   **Limitations & Simplifications**: Excludes Cassini's distant Jupiter pass; ignores 1:1 resonance physics and continuous third-body gravity.
 
-### 13. MESSENGER Chain (2004)
-*   **Category**: Historical Mission-Inspired Validation
-*   **Purpose**: Test the multi-leg optimizer on a chain with the launch origin body (Earth) reappearing later in the sequence as a flyby (Earth-Earth-Venus-Venus-Mercury-Mercury-Mercury).
-*   **Specification File**: `data/benchmarks/messenger_chain_2004.yaml`
-*   **Physical Assumptions**: Patched-conics, double-precision ephemerides, circular departure (200 km LEO), circular capture at Mercury (200 km).
-*   **Validation Targets**:
-    *   Verify the origin body reused as a flyby queries distinct epochs (launch epoch vs ~1 year later flyby epoch).
-    *   Characterize model fidelity limits (lack of resonant/multi-rev transfers and leg TOF bounds).
-*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 1500 evaluations), with the origin-vs-flyby epoch separation check successfully verified.
-*   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
-*   **Limitations & Simplifications**: Ignores resonant orbits (1:1 Earth-Earth and Venus-Venus) and continuous solar gravity perturbations.
-
-### 14. Voyager 2 Grand Tour (1977)
-*   **Category**: Historical Mission-Inspired Validation
-*   **Purpose**: Test the gated chain solver on a 4-flyby sequence visiting all four giant outer planets (Earth-Jupiter-Saturn-Uranus-Neptune) under generous leg TOF bounds.
-*   **Specification File**: `data/benchmarks/voyager2_grand_tour_1977.yaml`
-*   **Physical Assumptions**: Patched-conics, double-precision ephemerides, circular departure (200 km LEO), circular capture placeholder at Neptune (10000 km).
-*   **Validation Targets**:
-    *   Test optimizer search capability over a 12-year cruise with high sensitivity to epoch timings.
-    *   Demonstrate that the chain solver enforces physical deflection limits for outer planets without silently accepting infeasible trajectories.
-*   **Expected Outputs**: Convergence outcome is `False` (0 feasible out of 2000 evaluations) due to high sensitivity of the search space, unpowered flybys, and absence of intermediate correction maneuvers beyond a small budget.
-*   **Runtime Characteristics**: $\approx 10 - 20$ seconds.
-*   **Limitations & Simplifications**: Ignores continuous third-body perturbations of the giant planets and solar gravity during multi-year legs.
-
-### 15. Instantaneous-Flyby Approximation Validation
-*   **Category**: Analytical & Physics Validation
-*   **Purpose**: Numerically measure the accuracy of the instantaneous-flyby (Rodrigues rotation) approximation against direct two-body Runge-Kutta 4(5) propagation.
-*   **Physical Assumptions**: Two-body planet-centric motion.
-*   **Validation Targets**:
-    *   Jupiter, Saturn, Uranus hyperbolic encounters.
-    *   Speed convergence error fraction $< 10^{-6}$ at $r_{\text{stop}}$.
-    *   Verify if $r_{\text{stop}} < R_{\text{SOI}}$ for each outer planet.
-*   **Expected Outputs**: Pass, with measured angular discrepancy $< 10^{-5}$ deg (Rodrigues rotation is mathematically exact for Keplerian trajectories).
-*   **Runtime Characteristics**: $< 10$ seconds.
-*   **Limitations & Simplifications**: Only validates the two-body hyperbolic pass; does not model third-body gravity or heliocentric cruise perturbations.
 
 
