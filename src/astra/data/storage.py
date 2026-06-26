@@ -5,13 +5,16 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import duckdb
 import numpy as np
 
 from astra.optimization.pareto import hypervolume_indicator_2d, pareto_spread
 from astra.state.trajectory import Trajectory
+
+if TYPE_CHECKING:
+    from astra.physics.kernel import PhysicsKernel
 
 
 class TrajectoryStore:
@@ -58,8 +61,19 @@ class TrajectoryStore:
         explanation: dict[str, Any] | None = None,
         feasible: bool = True,
         tags: str = "",
+        audit_before_save: bool = False,
+        kernel: PhysicsKernel | None = None,
     ) -> str:
-        """Persist trajectory. Returns assigned UUID."""
+        """Persist trajectory. Returns assigned UUID.
+
+        If audit_before_save is True and a kernel is provided, an independent
+        physics audit will be run on the trajectory prior to persistence.
+        """
+        if audit_before_save and kernel is not None:
+            from astra.optimization.audit import audit_trajectory_physics
+
+            audit_trajectory_physics(trajectory, kernel)
+
         tid = str(uuid.uuid4())
         self.conn.execute(
             """INSERT INTO trajectories (
