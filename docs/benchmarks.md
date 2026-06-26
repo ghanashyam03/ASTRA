@@ -233,5 +233,19 @@ To maintain the scientific credibility of ASTRA, validations are classified into
 *   **Runtime Characteristics**: $\approx 5 - 15$ seconds.
 *   **Limitations & Simplifications**: Excludes Cassini's distant Jupiter pass; ignores 1:1 resonance physics and continuous third-body gravity.
 
+### 18. SOI Crossing Displacement Ratio Screening
+*   **Category**: Analytical & Physics Validation
+*   **Purpose**: Screen celestial bodies to determine if the "planet frozen during flyby" patched-conics approximation is physically reasonable by comparing the distance the planet moves in its orbit during a spacecraft's SOI passage to the SOI radius itself.
+*   **Specification File**: `src/astra/physics/soi_passage_estimate.py`
+*   **Physical Assumptions**: Two-body patched-conics, spherical Laplace Sphere of Influence (SOI) radius, conservative upper-bound crossing time based on approach excess speed ($v_{\infty}$).
+*   **Validation Targets**:
+    *   Verify the mathematical upper-bound crossing-time speed inequality ($v(r) \ge v_{\infty}$) inside the SOI.
+    *   Quantify displacement ratios across three distinct epochs (2030, 2035, 2040) to verify trend robustness.
+    *   Establish that inner planets (Mercury, Venus, Earth, Mars) show the largest displacement ratios due to high orbital velocities, whereas outer planets show the smallest.
+*   **Expected Outputs**: Mercury shows the highest ratio (~15.7 - 23.3) and Neptune the lowest (~1.1), with the outward-decreasing trend strictly robust.
+*   **Runtime Characteristics**: $< 50$ ms.
+*   **Limitations & Simplifications**: Only a screening metric; a large ratio does not automatically imply large trajectory error, nor does a small ratio prove patched-conics is exact. Detailed findings are documented in [displacement_ratio_findings.md](file:///c:/Users/ghana/OneDrive/Desktop/ASTRA/astra/docs/validation/displacement_ratio_findings.md).
+
+
 
 
