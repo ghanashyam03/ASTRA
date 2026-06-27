@@ -647,6 +647,8 @@ uv run pytest tests/benchmark/test_full_system_acceptance.py -v -m slow
 | 13 | MESSENGER Chain (2004) | Historical Mission-Inspired | Multi-leg gated chain optimizer test with origin reappearing as flyby (Correctly Non-convergent due to lack of resonant/multi-rev transfer support) |
 | 14 | Voyager 2 Grand Tour (1977) | Historical Mission-Inspired | Multi-leg gated chain optimizer test for giant planets (Correctly Non-convergent due to search space complexity and sensitivity) |
 | 15 | Instantaneous-Flyby Approximation | Analytical & Physics | Numerical comparison of closed-form Rodrigues rotation vs RK45 integration (Discrepancy < 1e-5 deg) |
+| 16 | SOI Crossing Displacement Ratio | Analytical & Physics | Screening check comparing planet displacement inside SOI against SOI radius itself (Mercury max ratio, Neptune min ratio; robust trend across epochs) |
+
 
 
 
