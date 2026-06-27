@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from astra.physics.forces.drag import ATMOSPHERE_CONSTANTS, AtmosphericDrag
 from astra.physics.forces.gravity import J2_CONSTANTS, ForceModel, J2Perturbation, PointMassGravity
 from astra.physics.forces.srp import SolarRadiationPressure
+from astra.physics.forces.third_body import EphemerisThirdBodyPerturbation
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -31,6 +32,7 @@ __all__ = [
     "J2Perturbation",
     "SolarRadiationPressure",
     "AtmosphericDrag",
+    "EphemerisThirdBodyPerturbation",
     "J2_CONSTANTS",
     "ATMOSPHERE_CONSTANTS",
     "build_ode",
