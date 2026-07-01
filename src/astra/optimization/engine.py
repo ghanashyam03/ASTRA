@@ -1021,6 +1021,30 @@ def optimize_mission_pinn_accelerated(
 optimize_mission_with_flyby = optimize_mission_mcts
 
 
+def _sample_leg_tofs(
+    mission: CompiledMission,
+    rng: np.random.Generator | None = None,
+    trial: optuna.trial.Trial | None = None,  # optuna Trial
+) -> list[float]:
+    """Sample one leg TOF per leg, using per-leg bounds when available."""
+    n_legs = len(mission.flyby_sequence) + 1
+    bounds = (
+        mission.leg_tof_bounds
+        if hasattr(mission, "leg_tof_bounds") and len(mission.leg_tof_bounds) == n_legs
+        else [(mission.tof_min_seconds, mission.tof_max_seconds)] * n_legs
+    )
+    result = []
+    for i, (tmin, tmax) in enumerate(bounds):
+        if trial is not None:
+            val = trial.suggest_float(f"tof_leg_{i}_seconds", tmin, tmax)
+        elif rng is not None:
+            val = float(rng.uniform(tmin, tmax))
+        else:
+            val = (tmin + tmax) / 2.0
+        result.append(val)
+    return result
+
+
 def optimize_mission_chain(
     mission: CompiledMission,
     kernel: PhysicsKernel,
@@ -1058,18 +1082,7 @@ def optimize_mission_chain(
             mission.departure_epoch_start,
             mission.departure_epoch_end,
         )
-        tofs = []
-        tof_min = mission.tof_min_seconds / 86400.0 if hasattr(mission, "tof_min_seconds") else 30.0
-        tof_max = (
-            mission.tof_max_seconds / 86400.0 if hasattr(mission, "tof_max_seconds") else 400.0
-        )
-        for leg_idx in range(n_legs):
-            tof_days = trial.suggest_float(
-                f"tof_leg_{leg_idx}_days",
-                tof_min,
-                tof_max,
-            )
-            tofs.append(tof_days * 86400.0)
+        tofs = _sample_leg_tofs(mission, trial=trial)
 
         flyby_specs = {
             entry["body"]: {
