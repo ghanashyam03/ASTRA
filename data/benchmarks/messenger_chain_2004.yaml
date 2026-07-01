@@ -39,24 +39,39 @@ multi_body_trajectory:
       max_periapsis_alt_km: 20000.0
       powered_burn_allowed: true
       max_powered_burn_km_s: 0.3
+      tof_min_days: 300
+      tof_max_days: 400
+      max_revs: 1
     - body: VENUS
       min_periapsis_alt_km: 300.0
       max_periapsis_alt_km: 20000.0
       powered_burn_allowed: false
+      tof_min_days: 100
+      tof_max_days: 500
+      max_revs: 1
     - body: VENUS
       min_periapsis_alt_km: 300.0
       max_periapsis_alt_km: 20000.0
       powered_burn_allowed: false
+      tof_min_days: 180
+      tof_max_days: 500
+      max_revs: 1
     - body: MERCURY
       min_periapsis_alt_km: 200.0
       max_periapsis_alt_km: 15000.0
       powered_burn_allowed: true
       max_powered_burn_km_s: 0.3
+      tof_min_days: 150
+      tof_max_days: 300
+      max_revs: 1
     - body: MERCURY
       min_periapsis_alt_km: 200.0
       max_periapsis_alt_km: 15000.0
       powered_burn_allowed: true
       max_powered_burn_km_s: 0.3
+      tof_min_days: 150
+      tof_max_days: 400
+      max_revs: 1
   dsm_budget_km_s: 0.3      # Approximate corrections/TCMs budget
   max_revs_per_leg: 0
 
@@ -64,8 +79,8 @@ launch_window:
   start: "2004-08-01T00:00:00Z"
   end: "2004-08-15T00:00:00Z"
   resolution_days: 1
-  tof_min_days: 30
-  tof_max_days: 500
+  tof_min_days: 400
+  tof_max_days: 600
 
 constraints:
   - type: max_delta_v

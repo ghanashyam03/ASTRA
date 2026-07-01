@@ -392,6 +392,11 @@ def resolve_flyby_chain(
     # STEP 1: solve every leg's Lambert problem
     leg_solutions = []
     for i in range(len(leg_tofs)):
+        leg_max_revs = (
+            mission.leg_max_revs[i]
+            if hasattr(mission, "leg_max_revs") and i < len(mission.leg_max_revs)
+            else mission.max_revs_per_leg
+        )
         try:
             sol = find_best_transfer(
                 r1=body_states[i].position,
@@ -400,7 +405,7 @@ def resolve_flyby_chain(
                 v2_body=body_states[i + 1].velocity,
                 tof=leg_tofs[i],
                 mu=mu_sun,
-                max_revs=mission.max_revs_per_leg,
+                max_revs=leg_max_revs,
             )
             leg_solutions.append(sol)
         except Exception as e:
@@ -430,6 +435,11 @@ def resolve_flyby_chain(
         dsm_frac = dsm_fractions[i] if dsm_fractions is not None else None
 
         if dsm_frac is not None:
+            leg_max_revs = (
+                mission.leg_max_revs[i]
+                if hasattr(mission, "leg_max_revs") and i < len(mission.leg_max_revs)
+                else mission.max_revs_per_leg
+            )
             try:
                 dsm_res = resolve_leg_with_dsm(
                     r1=body_states[i].position,
@@ -440,7 +450,7 @@ def resolve_flyby_chain(
                     tof_leg=leg_tofs[i],
                     dsm_fraction=dsm_frac,
                     mu_sun=mu_sun,
-                    max_revs=mission.max_revs_per_leg,
+                    max_revs=leg_max_revs,
                 )
                 dsm_resolutions[i] = dsm_res
                 dsm_remaining -= dsm_res.dsm_delta_v_km_s
