@@ -38,15 +38,24 @@ multi_body_trajectory:
       min_periapsis_alt_km: 300.0
       max_periapsis_alt_km: 20000.0
       powered_burn_allowed: false
+      tof_min_days: 90    # Earth→Venus direct transfer range
+      tof_max_days: 200
+      max_revs: 0
     - body: EARTH
       min_periapsis_alt_km: 500.0
       max_periapsis_alt_km: 20000.0
       powered_burn_allowed: false
+      tof_min_days: 90    # Venus→Earth
+      tof_max_days: 200
+      max_revs: 0
     - body: EARTH
       min_periapsis_alt_km: 300.0
       max_periapsis_alt_km: 20000.0
       powered_burn_allowed: true
       max_powered_burn_km_s: 0.3
+      tof_min_days: 600   # Earth→Earth 2:1 resonant loop (historical: 731 days)
+      tof_max_days: 900
+      max_revs: 2         # resonant transfer needs multi-rev
   dsm_budget_km_s: 0.5      # VERIFY: real VEEGA included deterministic correction
                             # maneuvers between legs — this budget approximates
                             # that allowance; check published Δv budget if available
@@ -56,8 +65,8 @@ launch_window:
   start: "1989-10-01T00:00:00Z"
   end: "1989-10-30T00:00:00Z"
   resolution_days: 1
-  tof_min_days: 30
-  tof_max_days: 200
+  tof_min_days: 700    # final leg Earth→Jupiter
+  tof_max_days: 1200
 
 constraints:
   - type: max_delta_v

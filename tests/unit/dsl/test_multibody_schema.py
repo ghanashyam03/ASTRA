@@ -95,4 +95,5 @@ def test_precedence_behavior() -> None:
         "max_alt_km": 10000.0,
         "powered_allowed": True,
         "max_powered_km_s": 0.8,
+        "max_revs": 2,
     }

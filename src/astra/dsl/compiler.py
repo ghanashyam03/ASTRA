@@ -50,6 +50,10 @@ class CompiledMission:
     flyby_sequence: list[dict[str, Any]] = field(default_factory=list)
     dsm_budget_km_s: float = 0.0
     max_revs_per_leg: int = 0
+    leg_tof_bounds: list[tuple[float, float]] = field(default_factory=list)
+    # list length = len(flyby_sequence) + 1 (one bound per leg, including final leg to destination)
+    leg_max_revs: list[int] = field(default_factory=list)
+    # list length = len(flyby_sequence) + 1
 
 
 def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -> CompiledMission:
@@ -170,5 +174,32 @@ def compile_mission(dsl: MissionDSL, ephemeris: EphemerisEngine | None = None) -
         ]
         compiled.dsm_budget_km_s = mbt.dsm_budget_km_s
         compiled.max_revs_per_leg = mbt.max_revs_per_leg
+
+        day = 86400.0
+        global_tof_min = dsl.launch_window.tof_min_days
+        global_tof_max = dsl.launch_window.tof_max_days
+        global_max_revs = mbt.max_revs_per_leg
+
+        # Build leg-level TOF bounds and max_revs:
+        # Leg i goes from body[i] to body[i+1].
+        # flyby_sequence[i] carries the TOF-bounds for the approach INTO body[i+1].
+        # The final leg (last flyby body → destination) has no explicit override;
+        # use global bounds.
+        leg_tof_bounds: list[tuple[float, float]] = []
+        leg_max_revs_list: list[int] = []
+        for fb in mbt.flyby_sequence:
+            tmin = (fb.tof_min_days if fb.tof_min_days is not None else global_tof_min) * day
+            tmax = (fb.tof_max_days if fb.tof_max_days is not None else global_tof_max) * day
+            leg_tof_bounds.append((tmin, tmax))
+            leg_max_revs_list.append(fb.max_revs if fb.max_revs is not None else global_max_revs)
+        # Final leg: origin/last-flyby → destination, always use global
+        leg_tof_bounds.append((global_tof_min * day, global_tof_max * day))
+        leg_max_revs_list.append(global_max_revs)
+
+        compiled.leg_tof_bounds = leg_tof_bounds
+        compiled.leg_max_revs = leg_max_revs_list
+        # Also update flyby_sequence entries with their max_revs for backward compat
+        for i, fb in enumerate(mbt.flyby_sequence):
+            compiled.flyby_sequence[i]["max_revs"] = leg_max_revs_list[i]
 
     return compiled

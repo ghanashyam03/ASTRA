@@ -32,3 +32,8 @@ def parse_mission_string(text: str, fmt: str = "yaml") -> MissionDSL:
     else:
         data = json.loads(text)
     return MissionDSL.model_validate(data)
+
+
+def parse_mission_yaml(path: str | Path) -> MissionDSL:
+    """Parse YAML file → MissionDSL. Alias for parse_mission_file."""
+    return parse_mission_file(path)
