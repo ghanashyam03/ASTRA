@@ -62,6 +62,187 @@ def compute_flyby_turn_angle(
     return 2.0 * half_angle
 
 
+# ── Geometric construction ────────────────────────────────────────────────────
+
+
+class GeometryConsistencyError(ValueError):
+    """Raised when the self-consistency check fails in the periapsis construction."""
+
+
+def build_geometrically_consistent_periapsis(
+    s_hat: np.ndarray,
+    h_hat: np.ndarray,
+    turn_angle_rad: float,
+    consistency_tol: float = 1e-9,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Construct geometrically self-consistent periapsis vectors for a hyperbolic flyby.
+
+    Given the incoming asymptote direction s_hat and a desired orbit normal h_hat
+    (which MUST be perpendicular to s_hat), derives the periapsis position and velocity
+    unit vectors by a single Rodrigues rotation, then verifies self-consistency.
+
+    Parameters
+    ----------
+    s_hat : unit vector along incoming asymptote (spacecraft velocity direction at t→−∞).
+            Must be a unit vector.
+    h_hat : desired orbit normal (angular momentum direction). Must satisfy h_hat · s_hat ≈ 0
+            and |h_hat| ≈ 1.
+    turn_angle_rad : total hyperbolic turn angle δ [radians], must be in (0, π).
+    consistency_tol : tolerance for the self-consistency check [unitless direction error].
+
+    Returns
+    -------
+    r_peri_hat : unit vector from body centre to periapsis point.
+    v_peri_hat : unit velocity direction at periapsis (perpendicular to r_peri_hat).
+    S_out_hat  : outgoing asymptote unit direction (for downstream use and verification).
+
+    Raises
+    ------
+    ValueError : if h_hat is not perpendicular to s_hat within 1e-6, or turn angle out of range.
+    GeometryConsistencyError : if the self-consistency check fails (indicates a coding bug).
+    """
+    # --- input validation ---
+    s_hat = np.asarray(s_hat, dtype=float)
+    h_hat = np.asarray(h_hat, dtype=float)
+
+    s_hat = s_hat / (float(np.linalg.norm(s_hat)) + 1e-30)
+    h_hat = h_hat / (float(np.linalg.norm(h_hat)) + 1e-30)
+
+    dot_Sh = float(np.dot(s_hat, h_hat))
+    if abs(dot_Sh) > 1e-6:
+        raise ValueError(
+            f"h_hat must be perpendicular to s_hat. "
+            f"Got |s_hat · h_hat| = {abs(dot_Sh):.2e} > 1e-6. "
+            f"Caller must supply an h_hat built from orbit_normal_from_bvector(S, B_hat) "
+            f"or any vector in the plane perpendicular to s_hat."
+        )
+
+    if not (0.0 < turn_angle_rad < math.pi):
+        raise ValueError(
+            f"turn_angle_rad must be in (0, π). Got {math.degrees(turn_angle_rad):.4f}°."
+        )
+
+    half = turn_angle_rad / 2.0
+
+    def _rodrigues(v: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
+        """Rotate v by angle about axis (unit vector) using Rodrigues' formula."""
+        c, s = math.cos(angle), math.sin(angle)
+        return v * c + np.cross(axis, v) * s + axis * float(np.dot(axis, v)) * (1.0 - c)
+
+    # --- step 1: v_peri_hat ---
+    v_peri_hat = _rodrigues(s_hat, h_hat, half)
+    v_peri_hat = v_peri_hat / (float(np.linalg.norm(v_peri_hat)) + 1e-30)
+
+    # --- step 2: r_peri_hat ---
+    r_peri_hat = np.cross(v_peri_hat, h_hat)
+    r_peri_norm = float(np.linalg.norm(r_peri_hat))
+    if r_peri_norm < 1e-10:
+        raise GeometryConsistencyError(
+            "r_peri_hat cross product collapsed to zero — "
+            "v_peri_hat and h_hat are parallel, which is geometrically impossible."
+        )
+    r_peri_hat = r_peri_hat / r_peri_norm
+
+    # --- step 3: outgoing asymptote ---
+    S_out_hat = _rodrigues(s_hat, h_hat, turn_angle_rad)
+    S_out_hat = S_out_hat / (float(np.linalg.norm(S_out_hat)) + 1e-30)
+
+    # --- step 4: self-consistency check ---
+    # Rotating v_peri_hat by another half-angle must yield S_out_hat
+    S_out_reconstructed = _rodrigues(v_peri_hat, h_hat, half)
+    S_out_reconstructed = S_out_reconstructed / (float(np.linalg.norm(S_out_reconstructed)) + 1e-30)
+    discrepancy = float(np.linalg.norm(S_out_reconstructed - S_out_hat))
+    if discrepancy > consistency_tol:
+        raise GeometryConsistencyError(
+            f"Self-consistency check failed: reconstructed S_out differs from expected S_out "
+            f"by {discrepancy:.2e} (tolerance {consistency_tol:.2e}). "
+            f"This is a bug in build_geometrically_consistent_periapsis — please report it."
+        )
+
+    return r_peri_hat, v_peri_hat, S_out_hat
+
+
+def compute_flyby_from_geometry(
+    s_hat: np.ndarray,
+    h_hat: np.ndarray,
+    v_inf_mag_km_s: float,
+    periapsis_km: float,
+    body: str,
+    powered_dv_km_s: float = 0.0,
+) -> FlybyResult:
+    """Compute a flyby result using the geometrically self-consistent periapsis construction.
+
+    This is the preferred entry point when a specific flyby plane (h_hat) has been chosen
+    via B-plane targeting. It calls build_geometrically_consistent_periapsis internally,
+    so the outgoing asymptote is GUARANTEED to be consistent with the turn angle derived
+    from (periapsis_km, v_inf_mag_km_s, body).
+
+    Parameters
+    ----------
+    s_hat         : unit vector along incoming asymptote direction.
+    h_hat         : orbit normal (perpendicular to s_hat). Use orbit_normal_from_bvector()
+                    to build this from a B-plane angle.
+    v_inf_mag_km_s: magnitude of the incoming excess velocity [km/s].
+    periapsis_km  : closest approach distance from body centre [km].
+    body          : planet name ("VENUS", "MARS", etc.).
+    powered_dv_km_s: optional impulsive burn at periapsis [km/s].
+
+    Returns
+    -------
+    FlybyResult with all fields populated. The v_inf_in vector is reconstructed as
+    s_hat * v_inf_mag_km_s. The outgoing excess velocity vector is the self-consistent
+    S_out_hat * v_inf_out_mag from the corrected geometry.
+    """
+    body_upper = body.upper()
+    mu = GM[body_upper]
+    R_body = PHYSICAL_RADIUS[CelestialBody[body_upper]]
+    safe_alt = SAFE_FLYBY_ALTITUDE_KM.get(body_upper, 300.0)
+    min_safe_r = R_body + safe_alt
+
+    is_valid = periapsis_km >= min_safe_r
+
+    # Turn angle from periapsis and v_inf
+    if powered_dv_km_s > 0.0:
+        v_peri_in = math.sqrt(v_inf_mag_km_s**2 + 2.0 * mu / periapsis_km)
+        v_peri_out = v_peri_in + powered_dv_km_s
+        v_inf_out_mag = math.sqrt(max(0.0, v_peri_out**2 - 2.0 * mu / periapsis_km))
+        e_in = 1.0 + periapsis_km * v_inf_mag_km_s**2 / mu
+        e_out = 1.0 + periapsis_km * v_inf_out_mag**2 / mu
+        turn_angle_rad = (
+            math.asin(min(1.0, 1.0 / e_in)) + math.asin(min(1.0, 1.0 / e_out))
+            if e_in >= 1.0 and e_out >= 1.0
+            else 0.0
+        )
+    else:
+        v_inf_out_mag = v_inf_mag_km_s
+        turn_angle_rad = compute_flyby_turn_angle(v_inf_mag_km_s, periapsis_km, body_upper)
+
+    turn_angle_deg = math.degrees(turn_angle_rad)
+
+    if turn_angle_rad > 0.0:
+        _, _, S_out_hat = build_geometrically_consistent_periapsis(s_hat, h_hat, turn_angle_rad)
+    else:
+        S_out_hat = np.asarray(s_hat, dtype=float)
+        S_out_hat = S_out_hat / (float(np.linalg.norm(S_out_hat)) + 1e-30)
+
+    v_inf_in = np.asarray(s_hat, dtype=float) * v_inf_mag_km_s
+    v_inf_out = S_out_hat * v_inf_out_mag
+    dv_helio = float(np.linalg.norm(v_inf_out - v_inf_in))
+
+    return FlybyResult(
+        body=body_upper,
+        periapsis_km=periapsis_km,
+        periapsis_altitude_km=periapsis_km - R_body,
+        v_inf_in_km_s=v_inf_mag_km_s,
+        v_inf_out_km_s=v_inf_out_mag,
+        turn_angle_deg=turn_angle_deg,
+        powered_dv_km_s=powered_dv_km_s,
+        dv_helio_km_s=dv_helio,
+        is_valid=is_valid,
+        min_safe_periapsis_km=min_safe_r,
+    )
+
+
 def compute_flyby(
     v_inf_in: np.ndarray,  # incoming hyperbolic excess velocity [km/s]
     periapsis_km: float,  # closest approach radius from body center [km]
