@@ -154,6 +154,11 @@ class FlybyBodySchema(BaseModel):
     max_periapsis_alt_km: float = 50000.0
     powered_burn_allowed: bool = False
     max_powered_burn_km_s: float = 0.0  # only used if powered_burn_allowed=True
+    # NEW: per-leg TOF bounds. If None, falls back to LaunchWindowSchema global values.
+    tof_min_days: float | None = None
+    tof_max_days: float | None = None
+    # NEW: per-leg multi-rev override. If None, falls back to MultiBodyTrajectorySchema global.
+    max_revs: int | None = None
 
     @model_validator(mode="after")
     def validate_burn_budget(self) -> FlybyBodySchema:
@@ -161,6 +166,12 @@ class FlybyBodySchema(BaseModel):
             raise ValueError("powered_burn_allowed=True requires max_powered_burn_km_s > 0")
         if self.max_periapsis_alt_km <= self.min_periapsis_alt_km:
             raise ValueError("max_periapsis_alt_km must exceed min_periapsis_alt_km")
+        if self.tof_min_days is not None and self.tof_max_days is not None:
+            if self.tof_max_days <= self.tof_min_days:
+                raise ValueError(
+                    f"tof_max_days ({self.tof_max_days}) must exceed "
+                    f"tof_min_days ({self.tof_min_days}) for body {self.body}"
+                )
         return self
 
 
