@@ -92,6 +92,73 @@ def _solve_periapsis_bisection(
     return (lo + hi) / 2.0
 
 
+def resolve_flyby_high_fidelity(
+    v_inf_in: np.ndarray,
+    periapsis_km: float,
+    body: str,
+    encounter_epoch: float,
+    kernel: PhysicsKernel,
+) -> np.ndarray:
+    """Resolve a flyby's outgoing v_inf using three-body propagation
+    (Sun + the actual, time-varying ephemeris position of the flyby body)
+    instead of the closed-form, planet-frozen Rodrigues rotation.
+
+    Returns the outgoing v_inf vector (heliocentric, relative to the
+    flyby body's velocity AT THE EXIT epoch — not the encounter epoch,
+    since that distinction is exactly what this function corrects for).
+    """
+    import math
+
+    from astra.physics.forces.gravity import PointMassGravity
+    from astra.physics.forces.third_body import EphemerisThirdBodyPerturbation
+    from astra.physics.propagator import propagate_two_body
+    from astra.physics.soi import compute_soi_radius
+    from astra.state.orbital_state import GM, CelestialBody, OrbitalState, ReferenceFrame
+
+    cb = CelestialBody[body.upper()]
+    mu_body = GM[body.upper()]
+    mu_sun = GM["SUN"]
+    v_inf_mag = float(np.linalg.norm(v_inf_in))
+
+    v_peri = math.sqrt(v_inf_mag**2 + 2.0 * mu_body / periapsis_km)
+    planet_state = kernel.get_body_state(cb, encounter_epoch)
+
+    # Build a periapsis-local frame consistent with the GIVEN v_inf_in
+    # direction (reuse the existing B-plane construction from Prompt 28
+    # for a physically meaningful, non-arbitrary orientation):
+    from astra.physics.flyby import build_bplane_frame
+
+    S, T, R = build_bplane_frame(v_inf_in)
+    # Use T as the periapsis direction (an arbitrary but CONSISTENT choice
+    # within the B-plane frame — consistent application matters more than
+    # which specific in-plane direction is chosen for this isolated test):
+    pos_local = periapsis_km * T
+    vel_local = v_peri * np.cross(S, T)  # tangential at periapsis
+
+    r_helio_peri = planet_state.position + pos_local
+    v_helio_peri = planet_state.velocity + vel_local
+    state0 = OrbitalState(
+        epoch=encounter_epoch,
+        position=r_helio_peri,
+        velocity=v_helio_peri,
+        frame=ReferenceFrame.ECLIPJ2000,
+        central_body=CelestialBody.SUN,
+    )
+
+    r_soi = compute_soi_radius(body)
+    dt_half = r_soi / v_inf_mag
+
+    forces = [
+        PointMassGravity(mu_sun),
+        EphemerisThirdBodyPerturbation(kernel, body, encounter_epoch),
+    ]
+    state_exit = propagate_two_body(state0, dt_half, forces=forces)
+
+    exit_planet_state = kernel.get_body_state(cb, encounter_epoch + dt_half)
+    v_inf_out = state_exit.velocity - exit_planet_state.velocity
+    return v_inf_out  # type: ignore[no-any-return]
+
+
 def resolve_single_flyby_segment(
     body: str,
     v_inf_in: np.ndarray,
@@ -101,6 +168,9 @@ def resolve_single_flyby_segment(
     powered_allowed: bool,
     max_powered_km_s: float,
     dsm_budget_available: float = 0.0,
+    high_fidelity_ratio_threshold: float = 5.0,
+    encounter_epoch: float | None = None,
+    kernel: PhysicsKernel | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Resolves a single flyby segment, checking physical feasibility.
 
@@ -126,6 +196,16 @@ def resolve_single_flyby_segment(
     if v_inf_in_mag <= 1e-6 or v_inf_out_mag <= 1e-6:
         return None, f"Excess velocity magnitudes at {body_upper} must be non-zero."
 
+    is_hf = False
+    if encounter_epoch is not None and kernel is not None:
+        from astra.physics.soi_passage_estimate import soi_crossing_displacement_ratio
+
+        ratio_res = soi_crossing_displacement_ratio(
+            body_upper, v_inf_in_mag, encounter_epoch, kernel
+        )
+        if ratio_res.ratio > high_fidelity_ratio_threshold:
+            is_hf = True
+
     cos_req = float(np.dot(v_inf_in, v_inf_out_required) / (v_inf_in_mag * v_inf_out_mag))
     cos_req = max(-1.0, min(1.0, cos_req))
     required_turn_rad = math.acos(cos_req)
@@ -137,7 +217,7 @@ def resolve_single_flyby_segment(
     # Check if turn is unpowered achievable and magnitudes coincide to numerical precision (1e-3)
     if feas.is_achievable_unpowered and magnitude_mismatch < 1e-3:
         r_p = feas.solved_periapsis_km if feas.solved_periapsis_km is not None else r_min
-        return {
+        res_dict = {
             "dv_km_s": 0.0,
             "periapsis_km": r_p,
             "resolution": "unpowered",
@@ -147,7 +227,20 @@ def resolve_single_flyby_segment(
             "max_unpowered_turn_deg": math.degrees(feas.max_unpowered_turn_rad),
             "max_turn_with_unlimited_burn_deg": math.degrees(feas.max_turn_with_unlimited_burn_rad),
             "magnitude_mismatch_km_s": magnitude_mismatch,
-        }, None
+        }
+        if is_hf:
+            assert encounter_epoch is not None
+            assert kernel is not None
+            v_inf_out_hf = resolve_flyby_high_fidelity(
+                v_inf_in=v_inf_in,
+                periapsis_km=r_p,
+                body=body_upper,
+                encounter_epoch=encounter_epoch,
+                kernel=kernel,
+            )
+            res_dict["is_hf"] = True
+            res_dict["v_inf_out"] = v_inf_out_hf
+        return res_dict, None
 
     # Case B: Powered periapsis burn needed (magnitude mismatch and/or turn angle beyond ceiling)
     best_r_p = _solve_periapsis_bisection(
@@ -188,7 +281,7 @@ def resolve_single_flyby_segment(
 
     resolution = "powered" if from_dsm < 1e-6 else "powered+dsm"
 
-    return {
+    res_dict = {
         "dv_km_s": best_powered_dv,
         "periapsis_km": best_r_p,
         "resolution": resolution,
@@ -198,7 +291,20 @@ def resolve_single_flyby_segment(
         "max_unpowered_turn_deg": math.degrees(feas.max_unpowered_turn_rad),
         "max_turn_with_unlimited_burn_deg": math.degrees(feas.max_turn_with_unlimited_burn_rad),
         "magnitude_mismatch_km_s": magnitude_mismatch,
-    }, None
+    }
+    if is_hf:
+        assert encounter_epoch is not None
+        assert kernel is not None
+        v_inf_out_hf = resolve_flyby_high_fidelity(
+            v_inf_in=v_inf_in,
+            periapsis_km=best_r_p,
+            body=body_upper,
+            encounter_epoch=encounter_epoch,
+            kernel=kernel,
+        )
+        res_dict["is_hf"] = True
+        res_dict["v_inf_out"] = v_inf_out_hf
+    return res_dict, None
 
 
 @dataclass
@@ -268,6 +374,7 @@ def resolve_flyby_chain(
     flyby_specs: dict[str, dict[str, Any]],  # body_name -> {min_alt_km, max_alt_km,
     #               powered_allowed, max_powered_km_s}
     dsm_fractions: list[float | None] | None = None,
+    high_fidelity_ratio_threshold: float = 5.0,
 ) -> ChainResult:
     """Resolve a full multi-leg chain with mandatory per-flyby feasibility checking."""
     assert len(leg_tofs) == len(chain_bodies) - 1
@@ -385,6 +492,9 @@ def resolve_flyby_chain(
             powered_allowed=spec["powered_allowed"],
             max_powered_km_s=spec["max_powered_km_s"],
             dsm_budget_available=dsm_remaining,
+            high_fidelity_ratio_threshold=high_fidelity_ratio_threshold,
+            encounter_epoch=epochs[k],
+            kernel=kernel,
         )
         if res is None:
             reason_code = RejectionReason.IMPOSSIBLE_GEOMETRY
@@ -405,6 +515,8 @@ def resolve_flyby_chain(
         label = f"FLY_{body.upper()}_POWERED" if is_powered else f"FLY_{body.upper()}_DSM"
         if res["dv_km_s"] < 1e-6:
             label = f"FLY_{body.upper()}"
+        if res.get("is_hf", False):
+            label += "_HF"
 
         maneuvers.append(Maneuver(epoch=epochs[k], delta_v=dv_vec, label=label))
 
@@ -417,6 +529,9 @@ def resolve_flyby_chain(
             "dv_km_s": res["dv_km_s"],
             "periapsis_km": res["periapsis_km"],
         }
+        if "is_hf" in res:
+            leg_detail["is_hf"] = res["is_hf"]
+            leg_detail["v_inf_out"] = res["v_inf_out"]
         leg_details.append(leg_detail)
 
     # STEP 4: arrival burn
