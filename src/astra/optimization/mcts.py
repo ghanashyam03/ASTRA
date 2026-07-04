@@ -218,7 +218,8 @@ class MCTSPlanner:
             return None
 
         action = node.untried_actions.pop()
-        next_state = self._apply_action(node.state, action)
+        leg_index = self._get_node_depth(node)
+        next_state = self._apply_action(node.state, action, leg_index)
         if next_state is None:
             return None
 
@@ -239,7 +240,7 @@ class MCTSPlanner:
             self.rng.shuffle(actions)
             next_state = None
             for action in actions:
-                next_state = self._apply_action(current_state, action)
+                next_state = self._apply_action(current_state, action, current_depth)
                 if next_state is not None:
                     break
 
@@ -283,7 +284,19 @@ class MCTSPlanner:
                 actions.append((body, tof))
         return actions
 
-    def _apply_action(self, state: PhaseState, action: tuple[str, float]) -> PhaseState | None:
+    def _get_leg_max_revs(self, leg_index: int) -> int:
+        """Return per-leg max_revs, falling back to global setting."""
+        if (
+            hasattr(self.mission, "leg_max_revs")
+            and self.mission.leg_max_revs
+            and leg_index < len(self.mission.leg_max_revs)
+        ):
+            return self.mission.leg_max_revs[leg_index]
+        return self.mission.max_revs_per_leg
+
+    def _apply_action(
+        self, state: PhaseState, action: tuple[str, float], leg_index: int = 0
+    ) -> PhaseState | None:
         next_body, tof_seconds = action
         epoch_arr = state.epoch + tof_seconds
 
@@ -306,6 +319,7 @@ class MCTSPlanner:
 
         from astra.physics.lambert import find_best_transfer
 
+        max_revs = self._get_leg_max_revs(leg_index)
         try:
             sol = find_best_transfer(
                 r1=r1,
@@ -314,7 +328,7 @@ class MCTSPlanner:
                 v2_body=v2_body,
                 tof=tof_seconds,
                 mu=GM["SUN"],
-                max_revs=0,
+                max_revs=max_revs,
             )
             v_dep = sol.v1
             v_arr = sol.v2

@@ -9,6 +9,7 @@ the full derivation of each case.
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -23,6 +24,8 @@ from astra.physics.lambert import find_best_transfer
 from astra.physics.maneuvers import arrival_delta_v, departure_delta_v
 from astra.state.orbital_state import GM, PHYSICAL_RADIUS, CelestialBody, OrbitalState
 from astra.state.trajectory import Maneuver, Trajectory
+
+logger = logging.getLogger(__name__)  # noqa: E402
 
 
 class RejectionReason(StrEnum):
@@ -397,6 +400,7 @@ def resolve_flyby_chain(
             if hasattr(mission, "leg_max_revs") and i < len(mission.leg_max_revs)
             else mission.max_revs_per_leg
         )
+        logger.debug(f"Solving Leg {i} Lambert with max_revs={leg_max_revs}")
         try:
             sol = find_best_transfer(
                 r1=body_states[i].position,
@@ -407,6 +411,7 @@ def resolve_flyby_chain(
                 mu=mu_sun,
                 max_revs=leg_max_revs,
             )
+            logger.debug(f"Leg {i} solved with n_revs={sol.n_revs}, branch={sol.branch}")
             leg_solutions.append(sol)
         except Exception as e:
             return ChainResult(
@@ -440,6 +445,7 @@ def resolve_flyby_chain(
                 if hasattr(mission, "leg_max_revs") and i < len(mission.leg_max_revs)
                 else mission.max_revs_per_leg
             )
+            logger.debug(f"Solving Leg {i} DSM Lambert with max_revs={leg_max_revs}")
             try:
                 dsm_res = resolve_leg_with_dsm(
                     r1=body_states[i].position,
@@ -452,6 +458,7 @@ def resolve_flyby_chain(
                     mu_sun=mu_sun,
                     max_revs=leg_max_revs,
                 )
+                logger.debug(f"Leg {i} DSM resolved: cost={dsm_res.dsm_delta_v_km_s:.4f} km/s")
                 dsm_resolutions[i] = dsm_res
                 dsm_remaining -= dsm_res.dsm_delta_v_km_s
                 arrival_velocities.append(dsm_res.effective_arrival_velocity)
