@@ -44,7 +44,7 @@ To maintain the scientific credibility of ASTRA, validations are classified into
     *   Trans-Lunar Injection (TLI) excess velocity $v_\infty$: $2.0 < v_{\infty} < 7.0$ km/s.
 *   **Expected Outputs**: Convergence is guaranteed, with TLI excess speed approximately $\sim 6.2$ km/s.
 *   **Runtime Characteristics**: $< 5$ ms (Single SPICE lookup + single Lambert solve).
-*   **Limitations & Simplifications**: Ignores three-body gravitational interactions (e.g. Earth-Moon-spacecraft CR3BP dynamics) and lunar gravity well capture.
+*   **Limitations & Simplifications**: Ignores three-body gravitational interactions (e.g. Earth-Moon-spacecraft CR3BP dynamics) and lunar gravity well capture. *(Note: High-fidelity three-body integration interfaces are now available in `src/astra/physics/cr3bp.py` for three-body modeling).*
 
 ### 3. Cassini Venus Flyby (1998)
 *   **Category**: Historical Mission-Inspired Validation (Physics Consistency)
@@ -103,7 +103,7 @@ To maintain the scientific credibility of ASTRA, validations are classified into
     *   Reference outbound TOF: $\approx 3$ days (Apollo class).
 *   **Expected Outputs**: Feasible outbound transfer conics converging around $3 - 4$ days.
 *   **Runtime Characteristics**: $< 1$ second.
-*   **Limitations & Simplifications**: ASTRA's two-impulse transfer model approximates the outbound transfer leg to the Moon's sphere of influence. A full free-return loop requires three-body numerical integration (Earth + Moon gravity acting simultaneously), which is outside the scope of patched-conics solvers.
+*   **Limitations & Simplifications**: ASTRA's two-impulse transfer model approximates the outbound transfer leg to the Moon's sphere of influence. A full free-return loop requires three-body numerical integration (Earth + Moon gravity acting simultaneously), which is outside the scope of patched-conics solvers. *(Note: The necessary CR3BP integration framework is now implemented in `src/astra/physics/cr3bp.py`).*
 
 ### 7. Earth-Mars 2031 (Standard & Long TOF)
 *   **Category**: Benchmark Validation (Regression & Performance)
