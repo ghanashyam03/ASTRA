@@ -13,6 +13,7 @@ ASTRA is a physics-constrained orbital trajectory optimization and mission analy
 *   **Pluggable Integrator Interface**: Supports numerical propagation using the Runge-Kutta 4(5) solver (`RK45Integrator`) with modular support for symplectic or custom adaptive integration solvers.
 *   **Physical Collision Detection**: Incorporates physical planetary equatorial radii boundaries (`PHYSICAL_RADIUS`) inside propagation loops to raise terminal collision exceptions synchronously.
 *   **Modular Perturbation Forces**: Provides a pluggable force model system (`ForceModel`) enabling composable ODE construction (combining point-mass gravity, J2 perturbations, solar radiation pressure, and atmospheric drag).
+*   **CR3BP Propagator**: High-fidelity Circular Restricted Three-Body Problem model for inner-planet flybys, Lagrange-point manifold exploitation, and Jacobi constant conservation checks, resolving velocity discrepancies of patched-conics.
 
 ### 2. ASTRA Mission DSL (`astra.dsl`)
 *   **Strict Pydantic v2 Schema**: High-level validation models verifying dry mass, fuel mass, Isp boundaries, time-of-flight spans, launch windows, constraints, objective weights, and multi-body flyby sequences with explicit DSM budgets.
@@ -103,14 +104,17 @@ astra/
 │   └── benchmarks/
 │       └── earth_mars_2031.yaml      # Reference Mission Specification
 ├── docs/
+│   ├── design/
+│   │   └── cr3bp_design.md           # CR3BP Propagator Design Specification
 │   └── physics_limitations.md        # Comprehensive Physics Core Limitations
 ├── src/
 │   └── astra/
 │       ├── dsl/                      # Mission DSL, Parser, Schema, Compiler
 │       ├── explainability/           # Delta-V breakdowns, window rationales, constraints
 │       ├── optimization/             # Porkchop computation, Bayesian optimizer, Search Space
-│       ├── physics/                  # Lambert Solver, Ephemeris Engine, Propagator
-│       │   └── forces/               # Modular force models (Gravity, J2, SRP, Drag)
+│       ├── physics/                  # Lambert Solver, Ephemeris Engine, Propagator, CR3BP
+│       │   ├── forces/               # Modular force models (Gravity, J2, SRP, Drag)
+│       │   └── cr3bp.py              # CR3BP Physics Core Implementation
 │       └── state/                    # Spacecraft, Trajectory, and Orbital Primitives
 └── tests/
     ├── integration/                  # End-to-End Optimization integration tests
