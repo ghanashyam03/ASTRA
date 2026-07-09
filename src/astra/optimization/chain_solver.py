@@ -126,20 +126,30 @@ def resolve_flyby_high_fidelity(
     v_peri = math.sqrt(v_inf_mag**2 + 2.0 * mu_body / periapsis_km)
     planet_state = kernel.get_body_state(cb, encounter_epoch)
 
-    # Build a periapsis-local frame consistent with the GIVEN v_inf_in
-    # direction (reuse the existing B-plane construction from Prompt 28
-    # for a physically meaningful, non-arbitrary orientation):
-    from astra.physics.flyby import build_bplane_frame
+    from astra.physics.flyby import (
+        build_bplane_frame,
+        build_geometrically_consistent_periapsis,
+        compute_flyby_turn_angle,
+        orbit_normal_from_bvector,
+    )
 
-    S, T, R = build_bplane_frame(v_inf_in)
-    # Use T as the periapsis direction (an arbitrary but CONSISTENT choice
-    # within the B-plane frame — consistent application matters more than
-    # which specific in-plane direction is chosen for this isolated test):
-    pos_local = periapsis_km * T
-    vel_local = v_peri * np.cross(S, T)  # tangential at periapsis
+    body_upper = body.upper()
+    # Turn angle for this approach geometry (exact hyperbolic formula)
+    turn_rad = compute_flyby_turn_angle(v_inf_mag, periapsis_km, body_upper)
 
-    r_helio_peri = planet_state.position + pos_local
-    v_helio_peri = planet_state.velocity + vel_local
+    # Orbit normal using T-axis as B-vector (θ=0 convention; reproducible and consistent)
+    S_hat, T_hat, _ = build_bplane_frame(v_inf_in)
+    h_hat = orbit_normal_from_bvector(S_hat, T_hat)
+
+    # Geometrically self-consistent periapsis position and velocity unit vectors
+    r_peri_hat, v_peri_hat, _ = build_geometrically_consistent_periapsis(S_hat, h_hat, turn_rad)
+
+    # Periapsis state in planet-centered inertial frame
+    pos_planet = r_peri_hat * periapsis_km
+    vel_planet = v_peri_hat * v_peri  # v_peri already computed from vis-viva above
+
+    r_helio_peri = planet_state.position + pos_planet
+    v_helio_peri = planet_state.velocity + vel_planet
     state0 = OrbitalState(
         epoch=encounter_epoch,
         position=r_helio_peri,
