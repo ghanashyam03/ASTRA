@@ -37,12 +37,41 @@ class RejectionReason(StrEnum):
 
 
 @dataclass
+class TrajectoryRejectionRecord:
+    trial_id: int
+    departure_epoch: float
+    leg_tofs: list[float]
+
+    current_leg: int
+    current_body: str
+
+    rejection_stage: str
+
+    reason_code: str
+
+    incoming_v_inf: np.ndarray | None
+    outgoing_v_inf: np.ndarray | None
+
+    required_turn_angle: float | None
+    maximum_turn_angle: float | None
+
+    periapsis_radius: float | None
+    minimum_allowed_radius: float | None
+
+    max_revs_used: int | None
+
+    delta_v_cost: float | None
+
+
+@dataclass
 class ChainResult:
     feasible: bool
     trajectory: Trajectory | None
-    reason: str | None
+    reason: str | None = None
     leg_details: list[dict[str, Any]] = field(default_factory=list)
     reason_code: RejectionReason | None = None
+    rejection_records: list[TrajectoryRejectionRecord] = field(default_factory=list)
+    total_continuity_violation_km_s: float = 0.0
 
 
 def _achieved_turn(r_p: float, v_inf_in_mag: float, v_inf_out_mag: float, mu: float) -> float:
@@ -184,19 +213,31 @@ def resolve_single_flyby_segment(
     high_fidelity_ratio_threshold: float = 5.0,
     encounter_epoch: float | None = None,
     kernel: PhysicsKernel | None = None,
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> tuple[dict[str, Any] | None, str | None, dict[str, Any] | None]:
     """Resolves a single flyby segment, checking physical feasibility.
 
     Returns:
-        (result_dict, error_string):
-        If feasible, result_dict is populated and error_string is None.
-        If infeasible or budget exceeded, result_dict is None and error_string is the reason.
+        (result_dict, error_string, failure_dict):
+        If feasible, result_dict is populated and error_string/failure_dict are None.
+        If infeasible or budget exceeded, result_dict is None, error_string is the reason,
+        and failure_dict contains detailed diagnostic information.
     """
     body_upper = body.upper()
     try:
         body_enum = CelestialBody[body_upper]
     except KeyError:
-        return None, f"Unknown celestial body: {body_upper}"
+        fail_cb: dict[str, Any] = {
+            "rejection_stage": "unknown_body",
+            "reason_code": "unknown_body",
+            "incoming_v_inf": v_inf_in,
+            "outgoing_v_inf": v_inf_out_required,
+            "required_turn_angle": None,
+            "maximum_turn_angle": None,
+            "periapsis_radius": None,
+            "minimum_allowed_radius": None,
+            "delta_v_cost": None,
+        }
+        return None, f"Unknown celestial body: {body_upper}", fail_cb
 
     mu_body = GM[body_upper]
     R_body = PHYSICAL_RADIUS[body_enum]
@@ -207,7 +248,22 @@ def resolve_single_flyby_segment(
     v_inf_out_mag = float(np.linalg.norm(v_inf_out_required))
 
     if v_inf_in_mag <= 1e-6 or v_inf_out_mag <= 1e-6:
-        return None, f"Excess velocity magnitudes at {body_upper} must be non-zero."
+        fail_zero: dict[str, Any] = {
+            "rejection_stage": "zero_v_inf",
+            "reason_code": "zero_v_inf",
+            "incoming_v_inf": v_inf_in,
+            "outgoing_v_inf": v_inf_out_required,
+            "required_turn_angle": None,
+            "maximum_turn_angle": None,
+            "periapsis_radius": None,
+            "minimum_allowed_radius": None,
+            "delta_v_cost": None,
+        }
+        return (
+            None,
+            f"Excess velocity magnitudes at {body_upper} must be non-zero.",
+            fail_zero,
+        )
 
     is_hf = False
     if encounter_epoch is not None and kernel is not None:
@@ -253,7 +309,7 @@ def resolve_single_flyby_segment(
             )
             res_dict["is_hf"] = True
             res_dict["v_inf_out"] = v_inf_out_hf
-        return res_dict, None
+        return res_dict, None, None
 
     # Case B: Powered periapsis burn needed (magnitude mismatch and/or turn angle beyond ceiling)
     best_r_p = _solve_periapsis_bisection(
@@ -275,7 +331,18 @@ def resolve_single_flyby_segment(
             f"unlimited-burn ceiling {math.degrees(feas.max_turn_with_unlimited_burn_rad):.2f}°). "
             f"This geometry is impossible at this body."
         )
-        return None, err
+        fail_geom: dict[str, Any] = {
+            "rejection_stage": "flyby_impossible_geometry",
+            "reason_code": "impossible_geometry",
+            "incoming_v_inf": v_inf_in,
+            "outgoing_v_inf": v_inf_out_required,
+            "required_turn_angle": required_turn_rad,
+            "maximum_turn_angle": feas.max_turn_with_unlimited_burn_rad,
+            "periapsis_radius": None,
+            "minimum_allowed_radius": r_min,
+            "delta_v_cost": None,
+        }
+        return None, err, fail_geom
 
     budget_available = (max_powered_km_s if powered_allowed else 0.0) + dsm_budget_available
     if best_powered_dv > budget_available:
@@ -285,7 +352,18 @@ def resolve_single_flyby_segment(
             f"is available (powered budget + remaining DSM budget). Increase "
             f"the declared budget or relax the trajectory geometry."
         )
-        return None, err
+        fail_budget: dict[str, Any] = {
+            "rejection_stage": "flyby_budget_exceeded",
+            "reason_code": "budget_exceeded",
+            "incoming_v_inf": v_inf_in,
+            "outgoing_v_inf": v_inf_out_required,
+            "required_turn_angle": required_turn_rad,
+            "maximum_turn_angle": feas.max_turn_with_unlimited_burn_rad,
+            "periapsis_radius": best_r_p,
+            "minimum_allowed_radius": r_min,
+            "delta_v_cost": best_powered_dv,
+        }
+        return None, err, fail_budget
 
     # Allocate costs
     powered_budget = max_powered_km_s if powered_allowed else 0.0
@@ -317,7 +395,7 @@ def resolve_single_flyby_segment(
         )
         res_dict["is_hf"] = True
         res_dict["v_inf_out"] = v_inf_out_hf
-    return res_dict, None
+    return res_dict, None, None
 
 
 @dataclass
@@ -404,6 +482,8 @@ def resolve_flyby_chain(
 
     # STEP 1: solve every leg's Lambert problem
     leg_solutions = []
+    required_departure_vinf: float | None = None  # set after each flyby leg
+
     for i in range(len(leg_tofs)):
         leg_max_revs = (
             mission.leg_max_revs[i]
@@ -420,16 +500,66 @@ def resolve_flyby_chain(
                 tof=leg_tofs[i],
                 mu=mu_sun,
                 max_revs=leg_max_revs,
+                target_departure_vinf_km_s=required_departure_vinf,
+                vinf_continuity_weight=10.0,
             )
             logger.debug(f"Leg {i} solved with n_revs={sol.n_revs}, branch={sol.branch}")
             leg_solutions.append(sol)
         except Exception as e:
+            rec = TrajectoryRejectionRecord(
+                trial_id=-1,
+                departure_epoch=departure_epoch,
+                leg_tofs=leg_tofs,
+                current_leg=i,
+                current_body=chain_bodies[i + 1],
+                rejection_stage="lambert",
+                reason_code="lambert_failed",
+                incoming_v_inf=None,
+                outgoing_v_inf=None,
+                required_turn_angle=None,
+                maximum_turn_angle=None,
+                periapsis_radius=None,
+                minimum_allowed_radius=None,
+                max_revs_used=leg_max_revs,
+                delta_v_cost=None,
+            )
             return ChainResult(
                 False,
                 None,
                 f"Leg {i} Lambert solve failed: {e}",
+                leg_details=[],
                 reason_code=RejectionReason.LAMBERT_FAILED,
+                rejection_records=[rec],
+                total_continuity_violation_km_s=0.0,
             )
+
+        # After solving leg i (which arrives at body i+1):
+        # If body i+1 is an intermediate unpowered flyby body, the DEPARTURE v∞ for
+        # leg i+1 must equal the arrival v∞ at body i+1 (unpowered flyby continuity).
+        # Compute this constraint now, before solving leg i+1.
+        is_last_leg = i == len(leg_tofs) - 1
+        if not is_last_leg:
+            next_body_name = chain_bodies[i + 1].upper()
+            next_spec = (
+                flyby_specs.get(next_body_name) or flyby_specs.get(chain_bodies[i + 1]) or {}
+            )
+            is_intermediate_unpowered_flyby = (
+                next_spec is not None
+                and not next_spec.get("powered_allowed", False)
+                and next_body_name not in (chain_bodies[0].upper(), chain_bodies[-1].upper())
+            )
+            if is_intermediate_unpowered_flyby:
+                v_inf_arrival = sol.v2 - body_states[i + 1].velocity
+                required_departure_vinf = float(np.linalg.norm(v_inf_arrival))
+                logger.debug(
+                    f"Leg {i + 1} continuity target: departure |v∞| = "
+                    f"{required_departure_vinf:.4f} km/s "
+                    f"(arrival at {next_body_name} from leg {i})"
+                )
+            else:
+                required_departure_vinf = None  # powered flyby or destination — no constraint
+        else:
+            required_departure_vinf = None
 
     maneuvers: list[Maneuver] = []
     dsm_remaining = mission.dsm_budget_km_s
@@ -473,11 +603,16 @@ def resolve_flyby_chain(
                 dsm_remaining -= dsm_res.dsm_delta_v_km_s
                 arrival_velocities.append(dsm_res.effective_arrival_velocity)
             except Exception as e:
+                partial_violation = sum(
+                    ld.get("magnitude_mismatch_km_s", 0.0) for ld in leg_details
+                )
                 return ChainResult(
                     False,
                     None,
                     f"Leg {i} DSM resolve failed: {e}",
+                    leg_details=leg_details,
                     reason_code=RejectionReason.LAMBERT_FAILED,
+                    total_continuity_violation_km_s=partial_violation,
                 )
 
             if dsm_remaining < -1e-9:
@@ -486,11 +621,34 @@ def resolve_flyby_chain(
                     f"exceeds remaining DSM budget "
                     f"{dsm_remaining + dsm_res.dsm_delta_v_km_s:.4f} km/s"
                 )
+                rec = TrajectoryRejectionRecord(
+                    trial_id=-1,
+                    departure_epoch=departure_epoch,
+                    leg_tofs=leg_tofs,
+                    current_leg=i,
+                    current_body=chain_bodies[i + 1],
+                    rejection_stage="dsm_budget",
+                    reason_code="budget_exceeded",
+                    incoming_v_inf=None,
+                    outgoing_v_inf=None,
+                    required_turn_angle=None,
+                    maximum_turn_angle=None,
+                    periapsis_radius=None,
+                    minimum_allowed_radius=None,
+                    max_revs_used=leg_max_revs,
+                    delta_v_cost=dsm_res.dsm_delta_v_km_s,
+                )
+                partial_violation = sum(
+                    ld.get("magnitude_mismatch_km_s", 0.0) for ld in leg_details
+                )
                 return ChainResult(
                     False,
                     None,
                     err_msg,
+                    leg_details=leg_details,
                     reason_code=RejectionReason.BUDGET_EXCEEDED,
+                    rejection_records=[rec],
+                    total_continuity_violation_km_s=partial_violation,
                 )
         else:
             arrival_velocities.append(sol_original.v2)
@@ -510,7 +668,7 @@ def resolve_flyby_chain(
         v_inf_in = arrival_velocities[k - 1] - body_states[k].velocity
         v_inf_out_required = leg_solutions[k].v1 - body_states[k].velocity
 
-        res, err = resolve_single_flyby_segment(
+        res, err, fail_dict = resolve_single_flyby_segment(
             body=body,
             v_inf_in=v_inf_in,
             v_inf_out_required=v_inf_out_required,
@@ -532,7 +690,41 @@ def resolve_flyby_chain(
                     reason_code = RejectionReason.UNKNOWN_BODY
                 elif "Excess velocity magnitudes" in err:
                     reason_code = RejectionReason.ZERO_V_INF
-            return ChainResult(False, None, err, leg_details, reason_code=reason_code)
+
+            rec_rejection: TrajectoryRejectionRecord | None = None
+            if fail_dict is not None:
+                rec_rejection = TrajectoryRejectionRecord(
+                    trial_id=-1,
+                    departure_epoch=departure_epoch,
+                    leg_tofs=leg_tofs,
+                    current_leg=k,
+                    current_body=body.upper(),
+                    rejection_stage=fail_dict["rejection_stage"],
+                    reason_code=fail_dict["reason_code"],
+                    incoming_v_inf=fail_dict["incoming_v_inf"],
+                    outgoing_v_inf=fail_dict["outgoing_v_inf"],
+                    required_turn_angle=fail_dict["required_turn_angle"],
+                    maximum_turn_angle=fail_dict["maximum_turn_angle"],
+                    periapsis_radius=fail_dict["periapsis_radius"],
+                    minimum_allowed_radius=fail_dict["minimum_allowed_radius"],
+                    max_revs_used=None,
+                    delta_v_cost=fail_dict["delta_v_cost"],
+                )
+            failed_mismatch = abs(
+                float(np.linalg.norm(v_inf_in)) - float(np.linalg.norm(v_inf_out_required))
+            )
+            partial_violation = (
+                sum(ld.get("magnitude_mismatch_km_s", 0.0) for ld in leg_details) + failed_mismatch
+            )
+            return ChainResult(
+                False,
+                None,
+                err,
+                leg_details,
+                reason_code=reason_code,
+                rejection_records=[rec_rejection] if rec_rejection is not None else [],
+                total_continuity_violation_km_s=partial_violation,
+            )
 
         dsm_remaining -= res["from_dsm"]
         v_inf_in_mag = float(np.linalg.norm(v_inf_in))
@@ -621,4 +813,12 @@ def resolve_flyby_chain(
         maneuvers=maneuvers,
         metadata={"chain": chain_bodies, "leg_details": leg_details},
     )
-    return ChainResult(True, trajectory, None, leg_details, reason_code=None)
+    total_violation = sum(ld.get("magnitude_mismatch_km_s", 0.0) for ld in leg_details)
+    return ChainResult(
+        True,
+        trajectory,
+        None,
+        leg_details,
+        reason_code=None,
+        total_continuity_violation_km_s=total_violation,
+    )
