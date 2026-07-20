@@ -41,6 +41,7 @@ class OptimizationResult:
     refinement_evaluations: int | None = None
     optimizer_strategy: str | None = None
     rejection_reasons: dict[str, int] = field(default_factory=dict)
+    rejection_records: list[Any] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -1075,6 +1076,7 @@ def optimize_mission_chain(
     max_dv, max_days = _get_hard_limits(mission)
     all_results: list[ChainResult] = []
     rejection_reasons: dict[str, int] = {}
+    all_rejection_records: list[Any] = []
 
     def objective(trial: optuna.Trial) -> tuple[float, float]:
         dep = trial.suggest_float(
@@ -1095,57 +1097,66 @@ def optimize_mission_chain(
         }
 
         dsm_budget = getattr(mission, "dsm_budget_km_s", 0.0)
-        dsm_fractions: list[float | None] = [None] * n_legs
-        result = None
 
-        from astra.optimization.chain_solver import RejectionReason
+        # Identify which legs approach intermediate flyby bodies (DSM candidates).
+        # Leg i goes from chain_bodies[i] to chain_bodies[i+1].
+        # A leg is a DSM candidate if its destination is an intermediate flyby body
+        # (not the origin and not the final destination).
+        intermediate_flyby_names = {b.upper() for b in chain_bodies[1:-1]}
 
-        while True:
-            try:
-                res = resolve_flyby_chain(
-                    mission,
-                    kernel,
-                    chain_bodies,
-                    dep,
-                    tofs,
-                    flyby_specs,
-                    dsm_fractions=dsm_fractions,
-                )
-            except Exception as e:
-                reason = f"exception: {type(e).__name__}"
-                rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
-                return 99.0, 999.0
-
-            if res.feasible or res.trajectory is None:
-                result = res
-                break
-
-            is_case_c = res.reason_code in (
-                RejectionReason.IMPOSSIBLE_GEOMETRY,
-                RejectionReason.BUDGET_EXCEEDED,
-            )
-            if not is_case_c or dsm_budget <= 0.0:
-                result = res
-                break
-
-            failing_leg_idx = len(res.leg_details)
-            if failing_leg_idx < 0 or failing_leg_idx >= n_legs:
-                result = res
-                break
-
-            if dsm_fractions[failing_leg_idx] is not None:
-                result = res
-                break
-
-            use_dsm = trial.suggest_categorical(f"use_dsm_leg_{failing_leg_idx}", [True, False])
-            if use_dsm:
-                dsm_frac = trial.suggest_float(f"dsm_frac_leg_{failing_leg_idx}", 0.1, 0.9)
-                dsm_fractions[failing_leg_idx] = dsm_frac
+        dsm_fractions: list[float | None] = []
+        for leg_idx in range(n_legs):
+            dest_body = chain_bodies[leg_idx + 1].upper()
+            is_dsm_candidate = dest_body in intermediate_flyby_names and dsm_budget > 0.0
+            if is_dsm_candidate:
+                use_dsm = trial.suggest_categorical(f"dsm_leg_{leg_idx}", [True, False])
+                if use_dsm:
+                    frac = trial.suggest_float(f"dsm_frac_{leg_idx}", 0.1, 0.9)
+                    dsm_fractions.append(frac)
+                else:
+                    dsm_fractions.append(None)
             else:
-                result = res
-                break
+                dsm_fractions.append(None)
 
-        if result is None or not result.feasible or result.trajectory is None:
+        # Single evaluation — no retry loop
+        try:
+            result = resolve_flyby_chain(
+                mission,
+                kernel,
+                chain_bodies,
+                dep,
+                tofs,
+                flyby_specs,
+                dsm_fractions=dsm_fractions,
+            )
+        except Exception as e:
+            reason = f"exception: {type(e).__name__}"
+            rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+            from astra.optimization.chain_solver import TrajectoryRejectionRecord
+
+            rec = TrajectoryRejectionRecord(
+                trial_id=trial.number,
+                departure_epoch=dep,
+                leg_tofs=tofs,
+                current_leg=0,
+                current_body=chain_bodies[1],
+                rejection_stage="exception",
+                reason_code=reason,
+                incoming_v_inf=None,
+                outgoing_v_inf=None,
+                required_turn_angle=None,
+                maximum_turn_angle=None,
+                periapsis_radius=None,
+                minimum_allowed_radius=None,
+                max_revs_used=None,
+                delta_v_cost=None,
+            )
+            all_rejection_records.append(rec)
+            return 99.0, 999.0
+
+        CONTINUITY_PENALTY_WEIGHT = 100.0  # 1 km/s violation → 100 km/s in objective
+
+        if result is None or result.trajectory is None:
             reason = (
                 str(result.reason_code.value)
                 if (
@@ -1156,7 +1167,32 @@ def optimize_mission_chain(
                 else "unknown"
             )
             rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+            if result is not None and hasattr(result, "rejection_records"):
+                for rec in result.rejection_records:
+                    rec.trial_id = trial.number
+                all_rejection_records.extend(result.rejection_records)
             return 99.0, 999.0
+
+        total_violation = getattr(result, "total_continuity_violation_km_s", 0.0)
+
+        if not result.feasible:
+            # Near-miss: infeasible but with measured continuity violation.
+            # Score reflects how close the trajectory is to feasibility.
+            # A 0.1 km/s violation scores ~20 km/s. A 3.8 km/s violation scores ~390 km/s.
+            reason = (
+                str(result.reason_code.value)
+                if (result.reason_code is not None)
+                else "continuity_violation"
+            )
+            rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+            if hasattr(result, "rejection_records") and result.rejection_records:
+                for rec in result.rejection_records:
+                    rec.trial_id = trial.number
+                all_rejection_records.extend(result.rejection_records)
+
+            base_dv = result.trajectory.delta_v_total if result.trajectory is not None else 10.0
+            soft_score = base_dv + CONTINUITY_PENALTY_WEIGHT * total_violation
+            return soft_score, 999.0  # TOF axis stays at 999 for infeasible
 
         result.trajectory.metadata["departure_epoch"] = dep
         result.trajectory.metadata["leg_tofs"] = tofs
@@ -1168,6 +1204,26 @@ def optimize_mission_chain(
         if dv > max_dv or days > max_days:
             reason = "hard_constraints_violated"
             rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+            from astra.optimization.chain_solver import TrajectoryRejectionRecord
+
+            rec = TrajectoryRejectionRecord(
+                trial_id=trial.number,
+                departure_epoch=dep,
+                leg_tofs=tofs,
+                current_leg=n_legs - 1,
+                current_body=chain_bodies[-1],
+                rejection_stage="hard_constraints",
+                reason_code="hard_constraints_violated",
+                incoming_v_inf=None,
+                outgoing_v_inf=None,
+                required_turn_angle=None,
+                maximum_turn_angle=None,
+                periapsis_radius=None,
+                minimum_allowed_radius=None,
+                max_revs_used=None,
+                delta_v_cost=dv,
+            )
+            all_rejection_records.append(rec)
             return 99.0 + dv, 999.0 + days
         return dv, days
 
@@ -1195,4 +1251,5 @@ def optimize_mission_chain(
         converged=best is not None,
         optimizer_strategy="chain_gated",
         rejection_reasons=rejection_reasons,
+        rejection_records=all_rejection_records,
     )
