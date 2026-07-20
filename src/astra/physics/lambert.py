@@ -194,6 +194,7 @@ class LambertSolution:
     n_revs: int  # Number of revolutions
     branch: str  # "low", "high", or "single"
     delta_v: float  # Total Δv in km/s
+    departure_vinf_km_s: float = 0.0  # |v1 - v1_body|
 
 
 def _compute_t_and_derivatives(x: float, ll: float, n: int) -> tuple[float, float, float, float]:
@@ -419,21 +420,25 @@ def find_best_transfer(
     retrograde: bool = False,
     max_iter: int = 50,
     tol: float = 1e-12,
+    target_departure_vinf_km_s: float | None = None,
+    vinf_continuity_weight: float = 10.0,
 ) -> LambertSolution:
     """Find the optimal transfer (minimum delta-v) across N=0 and N >= 1 multi-rev branches.
 
     Parameters
     ----------
-    r1       : initial position vector [km]
-    v1_body  : departure planet/body velocity vector [km/s]
-    r2       : final position vector [km]
-    v2_body  : arrival planet/body velocity vector [km/s]
-    tof      : time of flight [seconds]
-    mu       : gravitational parameter [km³/s²]
-    max_revs : maximum number of revolutions to search
-    retrograde: prograde/retrograde toggle
-    max_iter : max iterations for root-finders
-    tol      : convergence tolerance
+    r1                         : initial position vector [km]
+    v1_body                    : departure planet/body velocity vector [km/s]
+    r2                         : final position vector [km]
+    v2_body                    : arrival planet/body velocity vector [km/s]
+    tof                        : time of flight [seconds]
+    mu                         : gravitational parameter [km³/s²]
+    max_revs                   : maximum number of revolutions to search
+    retrograde                 : prograde/retrograde toggle
+    max_iter                   : max iterations for root-finders
+    tol                        : convergence tolerance
+    target_departure_vinf_km_s: target departure v_inf [km/s] for unpowered flyby continuity
+    vinf_continuity_weight     : penalty weight for v_inf mismatch
 
     Returns
     -------
@@ -455,12 +460,14 @@ def find_best_transfer(
             dv1 = v1_0 - v1_body
             dv2 = v2_body - v2_0
             dv_total = float(np.linalg.norm(dv1) + np.linalg.norm(dv2))
+            departure_vinf = float(np.linalg.norm(v1_0 - v1_body))
             best_sol = LambertSolution(
                 v1=v1_0,
                 v2=v2_0,
                 n_revs=0,
                 branch="single",
                 delta_v=dv_total,
+                departure_vinf_km_s=departure_vinf,
             )
     except Exception:
         pass
@@ -505,13 +512,28 @@ def find_best_transfer(
                     dv1 = v1 - v1_body
                     dv2 = v2_body - v2
                     dv_total = float(np.linalg.norm(dv1) + np.linalg.norm(dv2))
-                    if best_sol is None or dv_total < best_sol.delta_v:
+                    departure_vinf = float(np.linalg.norm(v1 - v1_body))
+
+                    if target_departure_vinf_km_s is not None:
+                        vinf_mismatch = abs(departure_vinf - target_departure_vinf_km_s)
+                        score = dv_total + vinf_continuity_weight * vinf_mismatch
+                    else:
+                        score = dv_total
+
+                    if best_sol is None or score < (
+                        best_sol.delta_v
+                        if target_departure_vinf_km_s is None
+                        else best_sol.delta_v
+                        + vinf_continuity_weight
+                        * abs(best_sol.departure_vinf_km_s - target_departure_vinf_km_s)
+                    ):
                         best_sol = LambertSolution(
                             v1=v1,
                             v2=v2,
                             n_revs=n,
                             branch=branch,
                             delta_v=dv_total,
+                            departure_vinf_km_s=departure_vinf,
                         )
             except Exception:
                 continue

@@ -364,7 +364,7 @@ class MCTSPlanner:
             mission_dsm = getattr(self.mission, "dsm_budget_km_s", 0.0)
             dsm_budget_available = mission_dsm - state.dsm_spent
 
-            res, _ = resolve_single_flyby_segment(
+            res, _, _ = resolve_single_flyby_segment(
                 body=state.body,
                 v_inf_in=v_inf_in_vec,
                 v_inf_out_required=v_inf_out_vec,
